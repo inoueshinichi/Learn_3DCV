@@ -1,7 +1,7 @@
 # 3DGometryModule
 
 [並進要素]  
-(tx,ty,tz,tw)
+(tx,ty,tz,tw)  
 ・同次座標系
 
 [回転要素]  
