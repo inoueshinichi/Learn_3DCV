@@ -334,17 +334,17 @@ def delta_dcm(dcm:np.ndaray, omega:np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: (3,3)
     """
-    assert omgea.ndim == 1, "Dimension of omega must be 1 dim."
+    assert omega.ndim == 1, "Dimension of omega must be 1 dim."
     assert omega.shape[0] == 3, "omega must be (3,)."
 
     # 歪対象行列
     oc = np.zeros((3,3), dtype=np.float32)
-    oc[0, 1] = omega[2]
-    oc[1, 0] = -omega[2]
-    oc[0, 2] = -omega[1]
-    oc[2, 0] = omega[1]
-    oc[1, 2] = omega[0]
-    oc[2, 1] = -omega[0]
+    oc[0, 1] = -omega[2]
+    oc[1, 0] = omega[2]
+    oc[0, 2] = omega[1]
+    oc[2, 0] = -omega[1]
+    oc[1, 2] = -omega[0]
+    oc[2, 1] = omega[0]
 
     return oc @ dcm
 
