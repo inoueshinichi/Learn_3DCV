@@ -2,7 +2,7 @@
 Default:
     内因性, ZXY
 
-12パターン:
+24パターン:
     内因性 or 外因性
     古典オイラー角
         XYX, XZX, YXY, YZY, ZXZ, ZYZ
