@@ -1,16 +1,20 @@
 """オイラー角
 24パターン:
-    内因性 or 外因性
-    古典オイラー角
-        XYX, XZX, YXY, YZY, ZXZ, ZYZ
-    ブライアント角
-        XYZ, XZY, YXZ, YZX, ZXY, ZYX
+    i]  内因性(ローカル軸) or 外因性(ワールド軸)
+    ii] 回転順序
+        古典オイラー角
+            XYX, XZX, YXY, YZY, ZXZ, ZYZ
+        ブライアント角
+            XYZ, XZY, YXZ, YZX, ZXY, ZYX
 
 ジンバルロック発生条件:
     古典オイラー角 -> 第二軸が0,pi
     ブライアント角 -> 第二軸が±pi/2
-    ※ ジンバルロック発生時は, 第三軸の角度=0とすることで,
-    回転行列からオイラー角を一意に決める.
+    ※ 通常, ジンバルロック発生時は, 一意な回転状態(回転行列の状態)に対して,
+      オイラー角(θ1,θ2,θ3)のθ1±θ2の組み合わせが無数に存在し, 一意な解が
+      得られないが, 第三軸の角度=0とすることで, 一意な解を決めることができる.
+    ※ オイラー角は回転順序の各軸で従属関係が存在し, 最初の軸の回転状態が次の軸の回転に影響を与える.
+    first_axis -> second_axis -> third_axis
 
 行列は列優先表現とする. numpyのデータ配列は行優先.
 
@@ -40,14 +44,13 @@
 外因性 ZXZ 完
 外因性 ZYZ 完
 -
-外因性 XYZ
-外因性 XZY
-外因性 YXZ
-外因性 YZX
-外因性 ZXY
-外因性 ZXY
+外因性 XYZ 完
+外因性 XZY 完
+外因性 YXZ 完
+外因性 YZX 完
+外因性 ZXY 完
+外因性 ZYX 完
 '''
-
 
 import os
 import sys
@@ -1307,6 +1310,59 @@ class EulerOuterXYZState(EulerState):
                theta3_deg: float) -> np.ndarray:
         
         return az_rot(theta3_deg) @ ay_rot(theta2_deg) @ ax_rot(theta1_deg)
+    
+    @EulerState.overrides(EulerState)
+    def from_rot(self,
+                 rot: np.ndarray) -> Tuple[float, float, float]:
+        """回転行列からオイラー角を計算
+        Y軸回りの回転が±π/2のときジンバルロック発生.
+
+        Args:
+            rot (np.ndarray): 回転行列
+
+            R_global = R(Z)@R(Y)@R(X)
+
+            [[C(Z)C(Y), C(Z)S(Y)S(X)-C(X)S(Z), S(Z)S(X)+C(Z)C(X)S(Y)],
+             [C(Y)S(Z), C(Z)C(X)+S(Z)S(Y)S(X), C(X)S(Z)S(Y)-C(Z)S(X)],
+             [-S(Y), C(Y)S(X), C(Y)C(X)]]
+
+            Y=+pi/2のとき
+            r13 = cos(X-Z), r23 = sin(X-Z) where Z=0
+            Y=-pi/2のとき
+            r13 = -cos(X+Z), r23 = -sin(X+Z) where Z=0
+
+        Returns:
+            Tuple[float, float, float]: XYZ euler
+        """
+        if rot.shape != (3,3):
+            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+        
+        r11, r12, r13 = rot[0,0], rot[0,1], rot[0,2]
+        r21, r22, r23 = rot[1,0], rot[1,1], rot[1,2]
+        r31, r32, r33 = rot[2,0], rot[2,1], rot[2,2]
+
+        az_deg, ay_deg, ax_deg = 0.0, 0.0, 0.0
+
+        # ジンバルロックの確認
+        # r31=-sin(Y)の値で場合分け
+        if math.abs(r31 - 1.0) < self.gimbal_eps:
+            # r31 == +1, Y=-pi/2
+            ax_deg = math.degrees(math.atan2(r21, r11))
+            ay_deg = math.degrees(-math.pi/2)
+            az_deg = 0.0 # Y軸のジンバルロックに従属
+        elif math.abs(r31 + 1.0) < self.gimbal_eps:
+            # r31 == -1, Y=pi/2
+            ax_deg = math.degrees(math.atan2(r21, r11))
+            ay_deg = math.degrees(math.pi/2)
+            az_deg = 0.0 # Y軸のジンバルロックに従属
+        else:
+            ax_deg = math.degrees(math.atan2(r32, r33))
+            ay_deg = math.degrees(-math.asin(r31))
+            az_deg = math.degrees(math.atan2(r21, r11))
+
+        # XYZ Euler
+        return (ax_deg, ay_deg, az_deg)
+
 
 # 外因性 XZY
 class EulerOuterXZYState(EulerState):
@@ -1321,6 +1377,58 @@ class EulerOuterXZYState(EulerState):
                theta3_deg: float) -> np.ndarray:
         
         return ay_rot(theta3_deg) @ az_rot(theta2_deg) @ ax_rot(theta1_deg)
+    
+    @EulerState.overrides(EulerState)
+    def from_rot(self,
+                 rot: np.ndarray) -> Tuple[float, float, float]:
+        """回転行列からオイラー角を計算
+        Z軸回りの回転が±π/2のときジンバルロック発生.
+
+        Args:
+            rot (np.ndarray): 回転行列
+
+            R_global = R(Y)@R(Z)@R(X)
+
+            [[C(Y)C(Z), S(Y)S(X)-C(Y)C(X)S(Z), C(X)S(Z)+C(Y)S(Z)S(X)],
+             [S(Z), C(Z)C(X), -C(Z)S(X)],
+             [-C(Z)S(Y), C(Y)S(X)+C(X)S(Y)S(Z), C(Y)C(X)-S(Y)S(Z)S(X)]]
+
+            Z=+pi/2のとき
+            r13 = sin(X+Y), r33 = cos(X+Y) where Y=0
+            Z=-pi/2のとき
+            r13 = -sin(X-Y), r33 = cos(X-Y) where Y=0
+
+        Returns:
+            Tuple[float, float, float]: XZY euler
+        """
+        if rot.shape != (3,3):
+            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+        
+        r11, r12, r13 = rot[0,0], rot[0,1], rot[0,2]
+        r21, r22, r23 = rot[1,0], rot[1,1], rot[1,2]
+        r31, r32, r33 = rot[2,0], rot[2,1], rot[2,2]
+
+        az_deg, ay_deg, ax_deg = 0.0, 0.0, 0.0
+
+        # ジンバルロックの確認
+        # r21=sin(Z)の値で場合分け
+        if math.abs(r21 - 1.0) < self.gimbal_eps:
+            # r21 == +1, Z=pi/2
+            ax_deg = math.degrees(math.atan2(r11, r33))
+            az_deg = math.degrees(math.pi/2)
+            ay_deg = 0.0 # Z軸のジンバルロックに従属
+        elif math.abs(r21 + 1.0) < self.gimbal_eps:
+            # r21 == -1, Y=-pi/2
+            ax_deg = math.degrees(math.atan2(-r11, r33))
+            az_deg = math.degrees(-math.pi/2)
+            ay_deg = 0.0 # Z軸のジンバルロックに従属
+        else:
+            ax_deg = math.degrees(math.atan2(-r23, r22))
+            az_deg = math.degrees(math.asin(r21))
+            ay_deg = math.degrees(math.atan2(-r31, r11))
+
+        # XZY Euler
+        return (ax_deg, az_deg, ay_deg)
 
 # 外因性 YXZ
 class EulerOuterYXZState(EulerState):
@@ -1335,6 +1443,58 @@ class EulerOuterYXZState(EulerState):
                theta3_deg: float) -> np.ndarray:
         
         return az_rot(theta3_deg) @ ax_rot(theta2_deg) @ ay_rot(theta1_deg)
+    
+    @EulerState.overrides(EulerState)
+    def from_rot(self,
+                 rot: np.ndarray) -> Tuple[float, float, float]:
+        """回転行列からオイラー角を計算
+        X軸回りの回転が±π/2のときジンバルロック発生.
+
+        Args:
+            rot (np.ndarray): 回転行列
+
+            R_global = R(Z)@R(X)@R(Y)
+
+            [[C(Z)C(Y)-S(Z)S(X)S(Y), -C(X)S(Z), C(Z)S(Y)+C(Y)S(Z)S(X)],
+             [C(Y)S(Z)+C(Z)S(X)S(Y), C(Z)C(X), S(Z)S(Y)-C(Z)C(Y)S(X)],
+             [-C(X)S(Y), S(X), C(X)C(Y)]]
+
+            Z=+pi/2のとき
+            r11 = cos(Y+Z), r21 = sin(Y+Z) where Z=0
+            Z=-pi/2のとき
+            r11 = cos(Y-Z), r21 = -sin(Y-Z) where Z=0
+
+        Returns:
+            Tuple[float, float, float]: YXZ euler
+        """
+        if rot.shape != (3,3):
+            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+        
+        r11, r12, r13 = rot[0,0], rot[0,1], rot[0,2]
+        r21, r22, r23 = rot[1,0], rot[1,1], rot[1,2]
+        r31, r32, r33 = rot[2,0], rot[2,1], rot[2,2]
+
+        ay_deg, ax_deg, az_deg = 0.0, 0.0, 0.0
+
+        # ジンバルロックの確認
+        # r32=sin(X)の値で場合分け
+        if math.abs(r32 - 1.0) < self.gimbal_eps:
+            # r32 == +1, X=pi/2
+            ay_deg = math.degrees(math.atan2(r21, r11))
+            ax_deg = math.degrees(math.pi/2)
+            az_deg = 0.0 # X軸のジンバルロックに従属
+        elif math.abs(r32 + 1.0) < self.gimbal_eps:
+            # r32 == -1, Y=-pi/2
+            ay_deg = math.degrees(math.atan2(-r21, r11))
+            ax_deg = math.degrees(-math.pi/2)
+            az_deg = 0.0 # X軸のジンバルロックに従属
+        else:
+            ay_deg = math.degrees(math.atan2(-r31, r33))
+            ax_deg = math.degrees(math.asin(r32))
+            az_deg = math.degrees(math.atan2(-r21, r22))
+
+        # YXZ Euler
+        return (ay_deg, ax_deg, az_deg)
 
 # 外因性 YZX
 class EulerOuterYZXState(EulerState):
@@ -1349,6 +1509,59 @@ class EulerOuterYZXState(EulerState):
                theta3_deg: float) -> np.ndarray:
         
         return ax_rot(theta3_deg) @ az_rot(theta2_deg) @ ay_rot(theta3_deg)
+    
+    @EulerState.overrides(EulerState)
+    def from_rot(self,
+                 rot: np.ndarray) -> Tuple[float, float, float]:
+        """回転行列からオイラー角を計算
+        Z軸回りの回転が±π/2のときジンバルロック発生.
+
+        Args:
+            rot (np.ndarray): 回転行列
+
+            R_global = R(X)@R(Z)@R(Y)
+
+            [[C(Z)C(Y), -S(Z), C(Z)S(Y)],
+             [S(X)S(Y)+C(X)C(Y)S(Z), C(X)C(Z), C(X)S(Z)S(Y)-C(Y)S(X)],
+             [C(Y)S(X)S(Z)-C(X)S(Y), C(Z)S(X), C(X)C(Y)+S(X)S(Z)S(Y)]]
+
+            Z=+pi/2のとき
+            r21 = +cos(Y-X), r31 = -sin(Y-X) where X=0
+            Z=-pi/2のとき
+            r21 = -cos(Y+X), r31 = -sin(Y+X) where X=0
+
+        Returns:
+            Tuple[float, float, float]: YZX euler
+        """
+        if rot.shape != (3,3):
+            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+        
+        r11, r12, r13 = rot[0,0], rot[0,1], rot[0,2]
+        r21, r22, r23 = rot[1,0], rot[1,1], rot[1,2]
+        r31, r32, r33 = rot[2,0], rot[2,1], rot[2,2]
+
+        ay_deg, az_deg, ax_deg = 0.0, 0.0, 0.0
+
+        # ジンバルロックの確認
+        # r12=-sin(Z)の値で場合分け
+        if math.abs(r12 - 1.0) < self.gimbal_eps:
+            # r12 == +1, Z=-pi/2
+            ay_deg = math.degrees(math.atan2(-r31, r21))
+            az_deg = math.degrees(-math.pi/2)
+            ax_deg = 0.0 # Z軸のジンバルロックに従属
+        elif math.abs(r12 + 1.0) < self.gimbal_eps:
+            # r12 == -1, Z=pi/2
+            ay_deg = math.degrees(math.atan2(r31, r21))
+            az_deg = math.degrees(math.pi/2)
+            ax_deg = 0.0 # Z軸のジンバルロックに従属
+        else:
+            ay_deg = math.degrees(math.atan2(r13, r11))
+            az_deg = math.degrees(-math.asin(r12))
+            ax_deg = math.degrees(math.atan2(r32, r22))
+
+        # YZX Euler
+        return (ay_deg, az_deg, ax_deg)
+
 
 # 外因性 ZXY
 class EulerOuterZXYState(EulerState):
@@ -1363,6 +1576,58 @@ class EulerOuterZXYState(EulerState):
                theta3_deg: float) -> np.ndarray:
         
         return ay_rot(theta3_deg) @ ax_rot(theta2_deg) @ az_rot(theta1_deg)
+    
+    @EulerState.overrides(EulerState)
+    def from_rot(self,
+                 rot: np.ndarray) -> Tuple[float, float, float]:
+        """回転行列からオイラー角を計算
+        X軸回りの回転が±π/2のときジンバルロック発生.
+
+        Args:
+            rot (np.ndarray): 回転行列
+
+            R_global = R(Y)@R(X)@R(Z)
+
+            [[C(Y)C(Z)+S(Y)S(X)S(Z), C(Z)S(Y)S(X)-C(Y)S(Z), C(X)S(Y)],
+             [C(X)S(Z), C(X)C(Z), -S(X)],
+             [C(Y)S(X)S(Z)-C(Z)S(Y), C(Y)C(Z)S(X)+S(Y)S(Z), C(Y)C(X)]]
+
+            X=+pi/2のとき
+            r12 = -sin(Z-Y), r32 = cos(Z-Y) where Y=0
+            X=-pi/2のとき
+            r12 = -sin(Z+Y), r32 = -cos(Z+Y) where Y=0
+
+        Returns:
+            Tuple[float, float, float]: ZXY euler
+        """
+        if rot.shape != (3,3):
+            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+        
+        r11, r12, r13 = rot[0,0], rot[0,1], rot[0,2]
+        r21, r22, r23 = rot[1,0], rot[1,1], rot[1,2]
+        r31, r32, r33 = rot[2,0], rot[2,1], rot[2,2]
+
+        az_deg, ax_deg, ay_deg = 0.0, 0.0, 0.0
+
+        # ジンバルロックの確認
+        # r23=-sin(X)の値で場合分け
+        if math.abs(r23 - 1.0) < self.gimbal_eps:
+            # r23 == +1, X=-pi/2
+            az_deg = math.degrees(math.atan2(r12, r32))
+            ax_deg = math.degrees(-math.pi/2)
+            ay_deg = 0.0 # X軸のジンバルロックに従属
+        elif math.abs(r23 + 1.0) < self.gimbal_eps:
+            # r23 == -1, X=pi/2
+            az_deg = math.degrees(math.atan2(-r12, r32))
+            ax_deg = math.degrees(math.pi/2)
+            ay_deg = 0.0 # Z軸のジンバルロックに従属
+        else:
+            az_deg = math.degrees(math.atan2(r21, r22))
+            ax_deg = math.degrees(-math.asin(r23))
+            ay_deg = math.degrees(math.atan2(r13, r33))
+
+        # ZXY Euler
+        return (az_deg, ax_deg, ay_deg)
 
 # 外因性 ZYX
 class EulerOuterZYXState(EulerState):
@@ -1377,5 +1642,57 @@ class EulerOuterZYXState(EulerState):
                theta3_deg: float) -> np.ndarray:
         
         return ax_rot(theta3_deg) @ ay_rot(theta2_deg) @ az_rot(theta1_deg)
+    
+    @EulerState.overrides(EulerState)
+    def from_rot(self,
+                 rot: np.ndarray) -> Tuple[float, float, float]:
+        """回転行列からオイラー角を計算
+        X軸回りの回転が±π/2のときジンバルロック発生.
+
+        Args:
+            rot (np.ndarray): 回転行列
+
+            R_global = R(X)@R(Y)@R(Z)
+
+            [[C(Y)C(Z), -C(Y)S(Z), S(Y)],
+             [C(X)S(Z)+C(Z)S(X)S(Y), C(X)C(Z)-S(X)S(Y)S(Z), -C(Y)S(X)],
+             [S(X)S(Z)-C(X)C(Z)S(Y), C(Z)S(X)+C(X)S(Y)S(Z), C(X)C(Y)]]
+
+            Y=+pi/2のとき
+            r22 = cos(Z+X), r32 = sin(Z+X) where X=0
+            Y=-pi/2のとき
+            r22 = cos(Z-X), r32 = -sin(Z-Y) where X=0
+
+        Returns:
+            Tuple[float, float, float]: ZYX euler
+        """
+        if rot.shape != (3,3):
+            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+        
+        r11, r12, r13 = rot[0,0], rot[0,1], rot[0,2]
+        r21, r22, r23 = rot[1,0], rot[1,1], rot[1,2]
+        r31, r32, r33 = rot[2,0], rot[2,1], rot[2,2]
+
+        az_deg, ay_deg, ax_deg = 0.0, 0.0, 0.0
+
+        # ジンバルロックの確認
+        # r13=sin(Y)の値で場合分け
+        if math.abs(r13 - 1.0) < self.gimbal_eps:
+            # r13 == +1, Y=pi/2
+            az_deg = math.degrees(math.atan2(r32, r22))
+            ay_deg = math.degrees(math.pi/2)
+            ax_deg = 0.0 # Y軸のジンバルロックに従属
+        elif math.abs(r13 + 1.0) < self.gimbal_eps:
+            # r13 == -1, Y=-pi/2
+            az_deg = math.degrees(math.atan2(-r32, r22))
+            ay_deg = math.degrees(-math.pi/2)
+            ax_deg = 0.0 # Y軸のジンバルロックに従属
+        else:
+            az_deg = math.degrees(math.atan2(-r12, r11))
+            ax_deg = math.degrees(math.asin(r13))
+            ay_deg = math.degrees(math.atan2(-r23, r33))
+
+        # ZYX Euler
+        return (az_deg, ay_deg, ax_deg)
     
     
