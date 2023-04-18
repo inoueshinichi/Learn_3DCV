@@ -239,8 +239,8 @@ def dcm2rotvec(dcm: np.ndarray) -> Tuple[float, np.ndarray]:
         # 符号の反転チェック
         if np.linalg.norm(rot_vec) == math.pi:
            r1, r2, r3 = rot_vec
-           if (r1 == 0 and r2 == 0 and r3 < 0) or
-              (r1 == 0 and r2 < 0) or
+           if (r1 == 0 and r2 == 0 and r3 < 0) or \
+              (r1 == 0 and r2 < 0) or \
               (r1 < 0):
                   rot_vec *= -1             
     

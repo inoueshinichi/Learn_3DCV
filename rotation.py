@@ -12,7 +12,7 @@ from type_hint import *
 from euler_state import EulerState
 
 
-def ax_rot(ax_deg:float) -> np.ndarray:
+def ax_rot(ax_deg: float) -> np.ndarray:
     """X軸中心の回転ベクトル
 
     Args:
@@ -29,7 +29,7 @@ def ax_rot(ax_deg:float) -> np.ndarray:
     ], dtype=np.float32).reshape(3,3)
     return ax_rot
 
-def ay_rot(ay_deg:float) -> np.ndarray:
+def ay_rot(ay_deg: float) -> np.ndarray:
     """Y軸中心の回転ベクトル
 
     Args:
@@ -46,7 +46,7 @@ def ay_rot(ay_deg:float) -> np.ndarray:
     ], dtype=np.float32).reshape(3,3)
     return ay_rot
 
-def az_rot(az_deg:float) -> np.ndarray:
+def az_rot(az_deg: float) -> np.ndarray:
     """Z軸中心の回転行列
 
     Args:
@@ -62,4 +62,101 @@ def az_rot(az_deg:float) -> np.ndarray:
         0, 0, 1
     ], dtype=np.float32).reshape(3,3)
     return az_rot
+
+def dt_rot(rot: np.ndarray, omega: np.ndarray) -> np.ndarray:
+    """回転行列の微分(ポアソンの微分公式)
+
+    Args:
+        rot (np.ndarray): 回転行列[3x3]
+        omega (np.ndarray): 角速度ベクトル[3x1]
+
+    Returns:
+        np.ndarray: 回転行列の微分[3x3]
+    """
+    if rot.shape() != (3,3):
+        raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+
+    if omega.shape() != (3,1):
+        raise ValueError(f"Not match shape (3,1). Given is {omega.shape}")
+    
+    # 角速度ベクトルの歪対称行列
+    tilde_omega: np.ndarray = np.zeros(3, 3, dtype=np.float32)
+    tilde_omega[0,1] = omega[2]
+    tilde_omega[0,2] = -omega[1]
+    tilde_omega[1,0] = -omega[2]
+    tilde_omega[1,2] = omega[0]
+    tilde_omega[2,0] = omega[1]
+    tilde_omega[2,1] = -omega[0]
+
+    return tilde_omega @ rot
+
+def rot_to_rotvec(rot: np.ndarray) -> np.ndarray:
+    """回転行列から回転ベクトルを求める
+
+    Args:
+        rot (np.ndarray): 回転行列[3x3]
+
+    Returns:
+        np.ndarray: 回転ベクトル[3x1]
+    """
+    if rot.shape() != (3,3):
+        raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+    
+    A = 0.5 * (rot - rot.T)
+    l = np.array([A[2,1],A[0,2],A[1,0]], dtype=np.float32) # [nx*sin,ny*sin,nz*sin]
+    s = np.linalg.norm(l) # sin
+    c = 0.5 * (A[0,0] + A[1,1] + A[2,2] - 1) # cos
+
+    rot_vec = np.array([0, 0, 0], dtype=np.float32) # 回転ベクトル
+    n = np.array([0, 0, 0], dtype=np.float32) # 方向ベクトル
+    theta = 0.0 # 回転量
+
+    # sin(s)とcos(c)の値で場合分け
+    if s == 0 and c == 1:
+        # ゼロベクトル
+        pass
+    elif s == 0 and c == -1:
+        theta = math.pi # θ=π
+        B = rot + np.eye(3,3, dtype=np.float32) # R + I
+        # Bの列ベクトルを取得
+        r1, r2, r3 = np.hsplit(B) # B = [r1,r2,r3]
+        r_vecs = [np.squeeze(r1), np.squeeze(r2), np.squeeze(r3)]
+
+        # B(R+I)の非ゼロの列ベクトルを取得
+        # r1,r2,r3のどれかになる
+        non_zero_vec = None
+        non_zero_norm = 0.0
+        for r_vec in r_vecs:
+            norm = np.linalg.norm(r_vec)
+            if norm != 0.0:
+                non_zero_norm = norm
+                non_zero_vec = r_vec
+                break
+        # 回転量
+        theta = math.pi
+        # 方向ベクトル
+        n = non_zero_vec / non_zero_norm
+        # 回転ベクトル
+        rot_vec = theta * n
+
+        # 符号の反転チェック
+        r1, r2, r3 = rot_vec
+        # X軸回りorY軸回りorZ軸回りで負軸方向を向いていたら正軸方向に正す
+        if (r1 == 0 and r2 == 0 and r3 < 0) or\
+            (r1 == 0 and r2 < 0 and r3 == 0) or\
+            (r1 < 0 and r2 == 0 and r3 == 0):
+            rot_vec *= -1
+
+    else: # sin != 0
+        # 方向ベクトル
+        n = l / s
+        # 回転量
+        theta = math.arctan2(s, c)
+        # 回転ベクトル
+        rot_vec = theta * n
+
+    # 出力
+    return rot_vec
+        
+
 

@@ -3,7 +3,7 @@
 
 import abc
 
-class CoorState(abc.ABCMeta):
+class CoordinateState(abc.ABCMeta):
 
     def __init__(self):
         pass
@@ -28,10 +28,12 @@ class CoorLeftYupState(CoorState):
 
     def __init__(self):
         super(CoorLeftYupState, self).__init__()
+        pass
 
 # 左手座標系 Zup
 class CoorLeftZupState(CoorState):
 
     def __init__(self):
         super(CoorLeftZupState, self).__init__()
+        pass
 
