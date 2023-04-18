@@ -1,8 +1,7 @@
 """3Dジオメトリのコンテキスト
 
 Default:
-    右手座標系
-    Yup
+    右手座標系 Yup ・・・ OpenCV/Blender系統
 
     Y  
     |

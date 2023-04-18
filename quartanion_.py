@@ -58,7 +58,7 @@ def normalize_quat(quat: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray -- (4x1)
     """
-    return quat / (normalize_quat(quat))
+    return quat / (quat_norm(quat))
 
 
 def conj_quat(quat: np.ndarray) -> np.ndarray:
@@ -70,7 +70,7 @@ def conj_quat(quat: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray -- (4x1)
     """
-    return np.aray([quat[0], -quat[1], -quat[2], -quat[3]], dtype=np.float32)
+    return np.array([quat[0], -quat[1], -quat[2], -quat[3]], dtype=np.float32)
 
 
 def inv_quat(quat: np.ndarray) -> np.ndarray:

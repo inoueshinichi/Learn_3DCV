@@ -17,7 +17,3 @@ def euler_to_rot(theta1_deg: float,
 
     return euler_state.to_rot(theta1_deg, theta2_deg, theta3_deg)
 
-def euler_from_rot(rot: np.ndarray,
-                   euler_state: EulerState) -> Tuple[float, float, float]:
-
-    return euler_state.from_rot(rot)
