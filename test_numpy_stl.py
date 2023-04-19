@@ -16,7 +16,7 @@ np.set_printoptions(suppress=True) # 指数表記の禁止
 import cv2
 
 # 自作
-from transform import *
+from transform_ import *
 
 
 

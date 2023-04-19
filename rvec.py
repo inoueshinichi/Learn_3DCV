@@ -35,7 +35,7 @@ def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
         np.ndarray: [3x3]回転行列
     """
     if rvec.shape() != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is {rotvec.shape}")
+        raise ValueError(f"Not match shape (3,1). Given is {rvec.shape}")
     
     theta = np.linalg.norm(rvec) # 回転角[-pi, pi]
     n = rvec / theta # 方向ベクトル
@@ -57,4 +57,26 @@ def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
     
     return rot
 
+def rvec_to_quat(rvec: np.ndarray) -> np.ndarray:
+    """回転ベクトルからクォータニオンを求める
+
+    Args:
+        rvec (np.ndarray): 回転ベクトル[3x1] (vx,vy,vz)
+
+    Returns:
+        np.ndarray: クォータニオン[4x1] (qx,qy,qz,qw)
+    """
+    if rvec.shape() != (3,1):
+        raise ValueError(f"Not match shape (3,1). Given is {rvec.shape}")
     
+    theta = np.linalg.norm(rvec) # 回転量
+    n = rvec / theta # 方向ベクトル (単位ベクトル)
+
+    s2 = math.sin(theta/2)
+    c2 = math.cos(theta/2)
+    qx, qy, qz = n[0]*s2, n[1]*s2, n[2]*s2
+    qw = c2
+
+    return np.array([qx, qy, qz, qw], dtype=np.float32)
+
+

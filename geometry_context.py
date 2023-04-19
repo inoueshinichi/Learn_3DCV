@@ -1,12 +1,12 @@
 """3Dジオメトリのコンテキスト
 
 Default:
-    右手座標系 Yup ・・・ OpenCV/Blender系統
+    右手座標系 Zup ・・・ OpenCV/Blender系統
 
-    Y  
+    z  
     |
-    /---x
-   z
+    /---y
+   x
 
     オイラー角:
     内因性 ZXY
@@ -16,6 +16,8 @@ import os
 import sys
 
 import numpy as np
+
+from type_hint import *
 
 from coordinate_state import (
     CoordinateState,
@@ -56,6 +58,11 @@ from euler_state import (
 class GeometryContext:
 
     def __init__(self):
-        self.coordinate_state: CoordinateState = CoorRightYupState()
+        self.coor_state: CoordinateState = CoorRightZupState()
         self.euler_state: EulerState = EulerInnerZXYState()
 
+    def look_at(self,
+                target_pos: np.ndarray, 
+                camera_pos: np.ndarray, 
+                up_axis: Tuple[float, float, float]) -> np.ndarray:
+        return self.coor_state.look_at(target_pos, camera_pos, up_axis)
