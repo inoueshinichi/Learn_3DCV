@@ -26,7 +26,37 @@ def rvec(n: np.ndarray, theta_rad: float) -> np.ndarray:
     
     return theta_rad * n
 
-def rvec_rot()
+def rvec_rot(v: np.ndarray, rvec: np.ndarray) -> np.ndarray:
+    """回転ベクトルによる点の回転
+
+    Args:
+        v (np.ndarray): 点群(複数のいちベクトル) [3xN]
+        rvec (np.ndarray): 回転行列[3x1]
+
+    Returns:
+        np.ndarray: 回転後の点群[3xN]
+    """
+    if rvec.shape != (3,1):
+        raise ValueError(f"Not match shape (3,1). Given is {rvec.shape}")
+    
+    if v.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,N). Given is {v.shape}")
+
+    theta = np.linalg.norm(rvec) # rad
+    c = math.cos(theta)
+    s = math.sin(theta)
+    n = rvec / theta # 方向ベクトル [3x1]
+
+    # 方向ベクトルの歪対称行列
+    Nx = np.array([
+        [0, -n[2], n[1]],
+        [n[2], 0, -n[0]],
+        [-n[1], n[0], 0]
+    ], dtype=np.float32) # [3x3]
+
+    # 回転ベクトルによる点群の回転
+    return v*c + n * (n @ v) * (1 - c) + Nx @ v * s
+
      
 def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
     """回転ベクトルを回転行列に変換(ロドリゲスの回転公式)

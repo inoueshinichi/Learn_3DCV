@@ -242,27 +242,34 @@ def rot_quat(v: np.ndarray, q: np.ndarray) -> np.ndarray:
     """点(位置ベクトル)をクォータニオンで回転する
 
     Args:
-        v (np.ndarray): 点(位置ベクトル)[3x1]
+        v (np.ndarray): 点群(複数の位置ベクトル)[3xN]
         q (np.ndarray): 単位クォータニオン[4x1]
 
     Returns:
         np.ndarray: 回転後の点(位置ベクトル)
     """
-    if q.shape() != (4,1):
+    if q.shape != (4,1):
         raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
     
     if norm_quat(q) != 1.0:
         raise ValueError(f"Not match norm 1.0. Given is {norm_quat(q)}")
     
-    if v.shape() != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is {v.shape}")
+    if v.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,N). Given is {v.shape}")
     
-    r = np.r_[v, 0]     # 点をクォータニオンに変換
+    N: int = v.shape[1]
+    zero = np.zeros((1, N), dtype=np.float32)
+    
+    r = np.r_[v, zero]  # 点をクォータニオンに変換 [4xN]
     q_inv = inv_quat(q) # 逆クォータニオン
 
-    rq = cat_quat(q_inv, cat_quat(r, q))
-    ret_v = np.array([rq[0], rq[1], rq[2]], dtype=np.float32)
-    return ret_v
+    v_list = [] # list of [3x1] vector
+    for i in range(N):
+        rq = cat_quat(q_inv, cat_quat(r[:,i], q)) # クォータニオンによる1点の回転[4x1]
+        rv = np.array([rq[0], rq[1], rq[2]], dtype=np.float32)
+        v_list.append(rv.reshape(3,1))
+    
+    return np.hstack(v_list) # [3xN]
 
 
 def quat_to_rot(q: np.ndarray) -> np.ndarray:
