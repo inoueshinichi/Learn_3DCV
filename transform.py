@@ -49,15 +49,15 @@ def lerp(a: Union[np.ndarray, float], b: Union[np.ndarray, float], f: float) -> 
 def update_transform(M: np.ndarray,
                      local_delta_rot: np.ndarray,
                      local_delta_trans: np.ndarray) -> np.ndarray:
-    """4x4行列の更新
+    """4x4Pose行列の更新
 
     Args:
-        M (np.ndarray): 4x4の行列
+        M (np.ndarray): Pose行列[4x4]
         local_delta_rot (np.ndarray): ローカル座標系での姿勢変化
         local_delta_trans (np.ndarray): ローカル座標系での並進変化
 
     Returns:
-        np.ndarray: 4x4の行列
+        np.ndarray: 更新後のPose行列[4x4]
     """
     state_rot = M[:3,:3]
     state_trans = M[:3,3]
@@ -89,14 +89,14 @@ def update_transform(state_quat: np.ndarray,
 
 def get_transform(quat: np.ndarray, 
                   translation: np.ndarray) -> np.ndarray:
-    """クォータニオンと位置ベクトルから4x4の行列を作成
+    """クォータニオンと位置ベクトルからPose行列[4x4]を作成
 
     Args:
         quat (np.ndarray): 単位クォータニオン[4x1] (qx,qy,qz,qw)
         translation (np.ndarray): 並進要素 (tx,ty,tz)
 
     Returns:
-        np.ndarray: 4x4の行列
+        np.ndarray: Pose行列[4x4]
     """
     if translation.shape != (3,1):
         raise ValueError(f"Not match shape (3,1). Given is {translation.shape}")
@@ -110,6 +110,68 @@ def get_transform(quat: np.ndarray,
 
     return M
 
+def get_scale(M: np.ndarray) -> Tuple[float, float, float]:
+    """Pose行列[4x4]からスケール(sx,sy,sz)を求める
+
+    Args:
+        M (np.ndarray): Pose行列[4x4]
+
+    Returns:
+        Tuple[float, float, float]: (x,y,z)の各軸のスケール
+    """
+    if M.shape != (4,4):
+        raise ValueError(f"Not match shape (4,4). Given is {M.shape}")
+    
+    R = M[:3,:3]
+    # 行列は列優先表現なので,Rの3つの列ベクトルが(X軸,Y軸,Z軸)のベクトル
+
+    sx = np.linalg.norm(R[:,0])
+    sy = np.linalg.norm(R[:,1])
+    sz = np.linalg.norm(R[:,2])
+
+    return (sx, sy, sz)
+
+def get_rot(M: np.ndarray) -> np.ndarray:
+    """Pose行列[4x4]から回転行列[3x3]を求める
+
+    Args:
+        M (np.ndarray): Pose行列[4x4]
+
+    Returns:
+        np.ndarray: 回転行列[3x3]
+    """
+    if M.shape != (4,4):
+        raise ValueError(f"Not match shape (4,4). Given is {M.shape}")
+    
+    # 各軸のスケール
+    sx, sy, sz = get_scale(M)
+
+    # スケールが1以外の場合があるので正規化
+    R = M[:3,:3]
+    R[:,0] /= sx
+    R[:,1] /= sy
+    R[:,2] /= sz
+
+    return R
+
+def get_trans(M: np.ndarray) -> Tuple[float, float, float]:
+    """Pose行列[4x4]から並進(tx,ty,tz)を求める
+
+    Args:
+        M (np.ndarray): Pose行列[4x4]
+
+    Returns:
+       Tuple[float, float, float]: (x,y,z)の並進成分
+    """
+    if M.shape != (4,4):
+        raise ValueError(f"Not match shape (4,4). Given is {M.shape}")
+    
+    # 行列は列優先表現
+    tx: float = M[0,-1]
+    ty: float = M[1,-1]
+    tz: float = M[2,-1]
+
+    return (tx, ty, tz)
 
 def look_at(target_pos: np.ndarray, 
             camera_pos: np.ndarray, 
@@ -124,6 +186,6 @@ def look_at(target_pos: np.ndarray,
         up (Tuple[float,float,float], optional): カメラの上向きベクトル.
         
     Returns:
-        np.ndarray: カメラのView行列[4x4]
+        np.ndarray: カメラView行列[4x4]
     """
     return geometry_context.look_at(target_pos, camera_pos, up_axis)
