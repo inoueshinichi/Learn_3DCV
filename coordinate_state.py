@@ -34,24 +34,6 @@ class CoordinateState(abc.ABCMeta):
         self.up_axis: str = up_axis
 
     @abc.abstractclassmethod
-    def camera_right(self, target_dir: np.ndarray, up_dir: np.ndarray) -> np.ndarray:
-        """クロス積(外積)
-        右手系・・・右手フレミング 
-        左手系・・・左手フレミング
-        ※クロス積は右手系と左手系で定義が異なるので要注意.
-
-        Args:
-            target_dir (np.ndarray): 始点ベクトル[3x1]
-            up_dir (np.ndarray): 終点ベクトル[3x1]
-
-        Returns:
-            np.ndarray: 外積ベクトル[3x1]
-        """
-        func_name = inspect.currentframe().f_code.co_name
-        class_name = self.__class__.__name__
-        raise NotImplementedError(f"No implement {func_name} on {class_name}")
-
-    @abc.abstractclassmethod
     def look_at(self, 
                target_pos: np.ndarray, 
                camera_pos: np.ndarray, 
@@ -62,16 +44,11 @@ class CoordinateState(abc.ABCMeta):
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
 
 
-# 右手座標系 Yup
+# 右手座標系 Yup (OpenGL, AutoDesk Maya, SolidWorks 系統)
 class CoorRightYupState(CoordinateState):
 
     def __init__(self):
         super(CoorRightYupState, self).__init__("right", "yup")
-
-    @CoordinateState.overrides(CoordinateState)
-    def camera_right(self, target_dir: np.ndarray, up_dir: np.ndarray) -> np.ndarray:
-        other_dir = np.cross(target_dir, up_dir)
-        return other_dir / np.linalg.norm(other_dir)
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -96,38 +73,44 @@ class CoorRightYupState(CoordinateState):
         """
         # カメラのZ軸負向きベクトル(単位ベクトル) : 視線ベクトル
         ct_vec = target_pos - camera_pos
-        cam_forward = ct_vec / np.linalg.norm(ct_vec)
+        cam_eye = ct_vec / np.linalg.norm(ct_vec)
 
         # カメラ上向き
-        up = np.array(up_axis, dtype=np.float32)
+        cam_up = np.array(up_axis, dtype=np.float32)
 
-        # カメラのX軸正向きベクトル(単位ベクトル) : 右向きベクトル
-        cam_right = self.camera_right(cam_forward, up)
+        # カメラX軸正向きベクトル(単位ベクトル)
+        cam_x = np.cross(cam_eye, cam_up)
+        cam_x /= np.linalg.norm(cam_x)
 
-        # カメラY軸正向きベクトル(単位ベクトル) : 上向きベクトル
-        cam_up = np.cross(cam_right, cam_forward)
+        # カメラY軸正向きベクトル(単位ベクトル)
+        cam_y = np.cross(cam_x, cam_eye)
+        cam_y /= np.linalg.norm(cam_y)
+
+        # カメラZ軸正向きベクトル(単位ベクトル)
+        cam_z = np.cross(cam_x, cam_y)
+        cam_z /= np.linalg.norm(cam_z)
 
         # カメラ位置
-        tx = -1.0 * np.dot(cam_right, camera_pos)
-        ty = -1.0 * np.dot(cam_up, camera_pos)
-        tz = -1.0 * np.dot(cam_forward, camera_pos)
+        tx = -1.0 * np.dot(cam_x, camera_pos)
+        ty = -1.0 * np.dot(cam_y, camera_pos)
+        tz = -1.0 * np.dot(cam_z, camera_pos)
 
         # 4x4行列(ΣWの座標をΣCの座標に変換)
         M = np.array([
-            []
-        ])
+            [cam_x[0], cam_y[0], cam_z[0], tx],
+            [cam_x[1], cam_y[1], cam_z[1], ty],
+            [cam_x[2], cam_y[2], cam_z[2], tz],
+            [0.0, 0.0, 0.0, 1.0]
+        ], dtype=np.float32) # 列優先表現
+
+        return M
 
         
-# 右手座標系 Zup
+# 右手座標系 Zup (OpenCV, Blender, AutoCAD 系統)
 class CoorRightZupState(CoordinateState):
 
     def __init__(self):
         super(CoorRightZupState, self).__init__("right", "zup")
-
-    @CoordinateState.overrides(CoordinateState)
-    def camera_right(self, target_dir: np.ndarray, up_dir: np.ndarray) -> np.ndarray:
-        other_dir = np.cross(target_dir, up_dir)
-        return other_dir / np.linalg.norm(other_dir)
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -151,25 +134,45 @@ class CoorRightZupState(CoordinateState):
         Returns:
             np.ndarray: カメラのView行列[4x4]
         """
-        # 視線ベクトル(単位ベクトル) = Z軸正の向き
+        # カメラのZ軸正向きベクトル(単位ベクトル) : 視線ベクトル
         ct_vec = target_pos - camera_pos
-        forward_vec = ct_vec / np.linalg.norm(ct_vec)
+        cam_eye = ct_vec / np.linalg.norm(ct_vec)
 
-        # 右方向ベクトル = X軸正の向き
-        cam
-        right_vec = np.cross()
+        # カメラ上向き
+        cam_up = np.array(up_axis, dtype=np.float32)
+
+        # カメラX軸正向きベクトル(単位ベクトル)
+        cam_x = np.cross(cam_eye, cam_up)
+        cam_x /= np.linalg.norm(cam_x)
+
+        # カメラY軸正向きベクトル(単位ベクトル)
+        cam_y = -1.0 * np.cross(cam_x, cam_eye)
+        cam_y /= np.linalg.norm(cam_y)
+
+        # カメラZ軸正向きベクトル(単位ベクトル)
+        cam_z = cam_eye
+
+        # カメラ位置
+        tx = -1.0 * np.dot(cam_x, camera_pos)
+        ty = -1.0 * np.dot(cam_y, camera_pos)
+        tz = -1.0 * np.dot(cam_z, camera_pos)
+
+        # 4x4行列(ΣWの座標をΣCの座標に変換)
+        M = np.array([
+            [cam_x[0], cam_y[0], cam_z[0], tx],
+            [cam_x[1], cam_y[1], cam_z[1], ty],
+            [cam_x[2], cam_y[2], cam_z[2], tz],
+            [0.0, 0.0, 0.0, 1.0]
+        ], dtype=np.float32) # 列優先表現
+
+        return M
 
 
-# 左手座標系 Yup
+# 左手座標系 Yup (Direct3D, Metal, Unity 系統)
 class CoorLeftYupState(CoordinateState):
 
     def __init__(self):
         super(CoorLeftYupState, self).__init__("left", "yup")
-
-    @CoordinateState.overrides(CoordinateState)
-    def camera_right(self, target_dir: np.ndarray, up_dir: np.ndarray) -> np.ndarray:
-        other_dir = np.cross(target_dir, up_dir)
-        return -1.0 * other_dir / np.linalg.norm(other_dir)
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -192,18 +195,45 @@ class CoorLeftYupState(CoordinateState):
         Returns:
             np.ndarray: カメラのView行列[4x4]
         """
-        pass
+        # カメラのZ軸正向きベクトル(単位ベクトル) : 視線ベクトル
+        ct_vec = target_pos - camera_pos
+        cam_eye = ct_vec / np.linalg.norm(ct_vec)
 
-# 左手座標系 Zup
+        # カメラ上向き
+        cam_up = np.array(up_axis, dtype=np.float32)
+
+        # カメラX軸正向きベクトル(単位ベクトル)
+        cam_x = -1.0 * np.cross(cam_eye, cam_up)
+        cam_x /= np.linalg.norm(cam_x)
+
+        # カメラY軸正向きベクトル(単位ベクトル)
+        cam_y = -1.0 * np.cross(cam_x, cam_eye)
+        cam_y /= np.linalg.norm(cam_y)
+
+        # カメラZ軸正向きベクトル(単位ベクトル)
+        cam_z = cam_eye
+
+        # カメラ位置
+        tx = -1.0 * np.dot(cam_x, camera_pos)
+        ty = -1.0 * np.dot(cam_y, camera_pos)
+        tz = -1.0 * np.dot(cam_z, camera_pos)
+
+        # 4x4行列(ΣWの座標をΣCの座標に変換)
+        M = np.array([
+            [cam_x[0], cam_y[0], cam_z[0], tx],
+            [cam_x[1], cam_y[1], cam_z[1], ty],
+            [cam_x[2], cam_y[2], cam_z[2], tz],
+            [0.0, 0.0, 0.0, 1.0]
+        ], dtype=np.float32) # 列優先表現
+
+        return M
+
+
+# 左手座標系 Zup (Unreal Engine 系統)
 class CoorLeftZupState(CoordinateState):
 
     def __init__(self):
         super(CoorLeftZupState, self).__init__("left", "zup")
-
-    @CoordinateState.overrides(CoordinateState)
-    def camera_right(self, target_dir: np.ndarray, up_dir: np.ndarray) -> np.ndarray:
-        other_dir = np.cross(target_dir, up_dir)
-        return -1.0 * other_dir / np.linalg.norm(other_dir)
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -227,5 +257,36 @@ class CoorLeftZupState(CoordinateState):
         Returns:
             np.ndarray: カメラのView行列[4x4]
         """
-        pass
+        # カメラのZ軸負向きベクトル(単位ベクトル) : 視線ベクトル
+        ct_vec = target_pos - camera_pos
+        cam_eye = ct_vec / np.linalg.norm(ct_vec)
 
+        # カメラ上向き
+        cam_up = np.array(up_axis, dtype=np.float32)
+
+        # カメラX軸正向きベクトル(単位ベクトル)
+        cam_x = -1.0 * np.cross(cam_eye, cam_up)
+        cam_x /= np.linalg.norm(cam_x)
+
+        # カメラY軸正向きベクトル(単位ベクトル)
+        cam_y = np.cross(cam_x, cam_eye)
+        cam_y /= np.linalg.norm(cam_y)
+
+        # カメラZ軸正向きベクトル(単位ベクトル)
+        cam_z = np.cross(cam_x, cam_y)
+        cam_z /= np.linalg.norm(cam_z)
+        
+        # カメラ位置
+        tx = -1.0 * np.dot(cam_x, camera_pos)
+        ty = -1.0 * np.dot(cam_y, camera_pos)
+        tz = -1.0 * np.dot(cam_z, camera_pos)
+
+        # 4x4行列(ΣWの座標をΣCの座標に変換)
+        M = np.array([
+            [cam_x[0], cam_y[0], cam_z[0], tx],
+            [cam_x[1], cam_y[1], cam_z[1], ty],
+            [cam_x[2], cam_y[2], cam_z[2], tz],
+            [0.0, 0.0, 0.0, 1.0]
+        ], dtype=np.float32) # 列優先表現
+
+        return M

@@ -11,6 +11,23 @@ import numpy as np
 
 from type_hint import *
 
+def rvec(n: np.ndarray, theta_rad: float) -> np.ndarray:
+    """回転行列の計算
+
+    Args:
+        n (np.ndarray): 方向ベクトル(単位ベクトル)
+        theta_rad (float): 回転量
+
+    Returns:
+        np.ndarray: 回転ベクトル[3x1]
+    """
+    if n.shape != (3,1):
+        raise ValueError(f"Not match shape (3,1). Given is {n.shape}")
+    
+    return theta_rad * n
+
+def rvec_rot()
+     
 def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
     """回転ベクトルを回転行列に変換(ロドリゲスの回転公式)
 
@@ -34,7 +51,7 @@ def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: [3x3]回転行列
     """
-    if rvec.shape() != (3,1):
+    if rvec.shape != (3,1):
         raise ValueError(f"Not match shape (3,1). Given is {rvec.shape}")
     
     theta = np.linalg.norm(rvec) # 回転角[-pi, pi]
@@ -66,7 +83,7 @@ def rvec_to_quat(rvec: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: クォータニオン[4x1] (qx,qy,qz,qw)
     """
-    if rvec.shape() != (3,1):
+    if rvec.shape != (3,1):
         raise ValueError(f"Not match shape (3,1). Given is {rvec.shape}")
     
     theta = np.linalg.norm(rvec) # 回転量

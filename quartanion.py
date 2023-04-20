@@ -17,21 +17,74 @@ import math
 
 import numpy as np
 
+from transform import lerp
+
 from type_hint import *
 
-def slerp(q: np.ndarray, p: np.ndarray, f: float) -> np.ndarray:
+def quat_dot(q: np.ndarray, p: np.ndarray) -> float:
+    """クォータニオンの内積
+
+    Args:
+        q (np.ndarray): クォータニオン[4x1]
+        p (np.ndarray): クォータニオン[4x1]
+
+    Returns:
+        float: 内積
+    """
+    return np.dot(q, p)
+
+def quat_slerp(q: np.ndarray, p: np.ndarray, f: float) -> np.ndarray:
     """クォータニオンの球面補完
 
     Args:
         q (np.ndarray): 始点クォータニオン[4x1]
         p (np.ndarray): 終点クォータニオン[4x1]
-        f (float): 内分点比率 0~1
+        f (float): 内分点比率 0 - 1
 
     Returns:
         np.ndarray: 球面補完クォータニオン[4x1]
     """
-    pass
+    raw_cosm: float = quat_dot(q, p)
+    cosom: float = -raw_cosm
 
+    if raw_cosm >= 0.0:
+        cosom = raw_cosm
+
+    scale0: float = 0.0
+    scale1: float = 0.0
+
+    if cosom < 0.9999:
+        omega: float = math.acos(cosom)
+        inv_sin: float = 1.0 / math.sin(omega)
+        scale0 = math.sin((1.0 - f) * omega) * inv_sin
+        scale1 = math.sin(f * omega) * inv_sin
+    else:
+        # クォータニオンが同一直線上にある場合は, 線形補間を用いる.
+        scale0 = 1.0 - f
+        scale1 = f
+
+    if raw_cosm < 0.0:
+        scale1 = -1.0 * scale1
+    
+    f_q = scale0 * q + scale1 * p # クォータニオン同士の計算結果が単位クォータニオンになる保証はない.
+    f_nq = norm_quat(f_q) # 単位クォータニオン
+
+    return f_nq
+
+def quat_lerp(q: np.ndarray, p:np.ndarray, f: float) -> np.ndarray:
+    """クォータニオンの線形補完
+
+    Args:
+        q (np.ndarray): 始点クォータニオン[4x1]
+        p (np.ndarray): 終点クォータニオン[4x1]
+        f (float): 内分点比率 0 - 1
+
+    Returns:
+        np.ndarray: 球面補完クォータニオン[4x1]
+    """
+    f_quat = lerp(q, p, f) # [4x1]
+    return f_quat
+    
 def dt_quat(q: np.ndarray, omega: np.ndarray) -> np.ndarray:
     """クォータニオンの時間微分
 
@@ -157,6 +210,31 @@ def cat_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     
     # 連結したクォータニオンが単位クォータニオンであるとは限らない
     return normalize_quat(qp)
+
+def update_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
+    """クォータニオンpをqで更新
+
+    Args:
+        p (np.ndarray): クォータニオン(px, py, pz, pw)
+        q (np.ndarray): クォータニオン(qx, qy, qz, qw)
+
+    Returns:
+        np.ndarray: 更新済みクォータニオン[4x1]
+    """
+    if p.shape() != (4,1):
+        raise ValueError(f"Not match shape (4,1). Given is {p.shape}")
+    if norm_quat(p) != 1.0:
+        raise ValueError(f"Not match norm 1.0. Given is {norm_quat(p)}")
+    if q.shape() != (4,1):
+        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    if norm_quat(q) != 1.0:
+        raise ValueError(f"Not match norm 1.0. Given is {norm_quat(q)}")
+    
+    q_inv = inv_quat(q) # 逆クォータニオン
+    new_quat = cat_quat(q_inv, cat_quat(p, q))
+    new_quat = norm_quat(new_quat) # 単位クォータニオン
+    return new_quat
+
 
 def rot_quat(v: np.ndarray, q: np.ndarray) -> np.ndarray:
     """点(位置ベクトル)をクォータニオンで回転する
