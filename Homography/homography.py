@@ -72,6 +72,8 @@ from euler_state import EulerState
 
 from type_hint import *
 
+from ransac import Ransac, RansacModel
+
 def homo_normalize(homo_v: np.ndarray) -> np.ndarray:
     """2Dor3Dの同次座標の正規化
 
@@ -165,5 +167,51 @@ def find_homography(planar1_pts: np.ndarray, planar2_pts: np.ndarray) -> np.ndar
     return H / H[2,2]
 
 
+class RansacHomographyModel(RansacModel):
+    def __init__(self):
+        pass
+
+    @RansacModel.overrides(RansacModel)
+    def fit(self, data: np.ndarray) -> Any:
+        """ホモグラフィ行列Hを求める
+
+        Args:
+            data (np.ndarray): データセット[NxD] N: データ数, D:データ次元数
+
+        Returns:
+            Any: ホモグラフィ行列H[3x3]
+        """
+        pass
+
+    @RansacModel.overrides(RansacModel)
+    def get_error(self, data: np.ndarray, estimated_model: Any) -> np.ndarray:
+        """データ点数だけ二乗誤差の配列を求める
+
+        Args:
+            data (np.ndarray): データセット[NxD] N: データ数, D:データ次元数
+            estimated_model (Any): 誤差計算に使用する推定モデル
+
+        Returns:
+            np.ndarray: 二乗誤差の配列[Nx1]
+        """
+        pass
 
 
+def find_homography_with_ransac(planar1_pts: np.ndarray, 
+                                planar2_pts: np.ndarray, 
+                                max_iter: int = 1000,
+                                match_threshold: int = 10,
+                                inlier_mask: bool = False) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    """Ransacを用いたホモグラフィ行列Hのロバスト推定
+
+    Args:
+        planar1_pts (np.ndarray): 第一平面の2D点群[3xN]
+        planar2_pts (np.ndarray): 第二平面の2D点群[3xN]
+        max_iter (int, optional): Ransacの最大反復回数. Defaults to 1000.
+        match_threshold (int, optional): インライア閾値. Defaults to 10.
+        inlier_mask (bool, optional): インライアマスクのフラグ. Defaults to False.
+
+    Returns:
+        Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]: ロバストモデルH, インライアのマスク
+    """
+    pass
