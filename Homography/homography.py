@@ -94,6 +94,7 @@ def find_homography3D(planar1_pts_3d: np.ndarray, planar2_pts_3d: np.ndarray, ep
     Returns:
         np.ndarray: _description_
     """
+    pass
 
 
 def find_homography2D(planar1_pts: np.ndarray, planar2_pts: np.ndarray, eps: float = 1e-9) -> np.ndarray:
@@ -142,7 +143,7 @@ def find_homography2D(planar1_pts: np.ndarray, planar2_pts: np.ndarray, eps: flo
     
     # 最小二乗法 min|Ax|をSVD(特異値分解)で解く.
     U, S, V = np.linalg.svd(A)
-    H = V[8].reshape((3,3)) # 最小特異値に対応する直交行列Vの行ベクトルが解.
+    H = V[-1].reshape(3,3) # 最小特異値に対応する直交行列Vの行ベクトルが解.
 
     # Hは標準化した2D対応点で求めたので, もとに戻す
     H = np.linalg.inv(C2) @ H @ C1
@@ -150,6 +151,27 @@ def find_homography2D(planar1_pts: np.ndarray, planar2_pts: np.ndarray, eps: flo
     # h9=1になるように正規化して返す
     return H / H[2,2]
 
+def l2_error(x1: np.ndarray, x2: np.ndarray, H: np.ndarray) -> np.ndarray:
+    """L2誤差 (二乗誤差)
+
+    Args:
+        x1 (np.ndarray): 第一平面の2D点群[3xN] or [4xN]
+        x2 (np.ndarray): 第二平面の2D点群[3xN] or [4xN]
+        H (np.ndarray): ホモグラフィ行列 [3x3] or [4x4]
+
+    Returns:
+        np.ndarray: 対応点に対応するL2誤差の配列[1xN]
+    """
+    # ホモグラフィHで第一平面の点群を第2平面の点群に変換
+    transformed_x2 = H @ x1 # [3xN]
+
+    # 同次座標系を正規化(w=1)
+    transformed_x2 = transformed_x2 / transformed_x2[-1, :] # [3xN] / [1xN] = [3xN] with w = 1
+
+    # 二乗誤差を計算 (L2ロス)
+    errors = np.sqrt(np.sum((x2 - transformed_x2) ** 2, axis=0)) # [1xN]
+    
+    return errors
 
 class RansacHomography2DModel(RansacModel):
     def __init__(self):
@@ -191,14 +213,7 @@ class RansacHomography2DModel(RansacModel):
         planar1_pts = data[:3, :] # [3xN]
         planar2_pts = data[3:, :] # [3xN]
 
-        # ホモグラフィHで第一平面の点群を第2平面の点群に変換
-        transformed_pts = estimated_model @ planar1_pts # [3xN]
-
-        # 同次座標系を正規化(w=1)
-        transformed_pts = transformed_pts / transformed_pts[-1, :] # [3xN] / [1xN] = [3xN] with w = 1
-
-        # 二乗誤差を計算 (L2ロス)
-        errors = np.sqrt(np.sum((planar2_pts - transformed_pts) ** 2, axis=0)) # [1xN]
+        errors = l2_error(planar1_pts, planar2_pts, estimated_model)
 
         return errors
 
@@ -206,8 +221,7 @@ class RansacHomography2DModel(RansacModel):
 def find_homography2D_with_ransac(planar1_pts: np.ndarray, 
                                   planar2_pts: np.ndarray, 
                                   match_threshold: float = 10,
-                                  max_iter: int = 1000,
-                                  inlier_mask: bool = False) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+                                  max_iter: int = 1000) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """Ransacを用いた2D用ホモグラフィ行列Hのロバスト推定
 
     Args:
@@ -215,7 +229,6 @@ def find_homography2D_with_ransac(planar1_pts: np.ndarray,
         planar2_pts (np.ndarray): 第二平面の2D点群[3xN]
         max_iter (int, optional): Ransacの最大反復回数. Defaults to 1000.
         match_threshold (int, optional): インライア閾値. Defaults to 10.
-        inlier_mask (bool, optional): インライアマスクのフラグ. Defaults to False.
 
     Returns:
         Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]: ロバストモデルH, インライアのマスク
