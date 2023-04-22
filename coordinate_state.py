@@ -1,5 +1,9 @@
 """座標系設定の状態
 
+  1. 右手系 or 左手系
+  2. Yup or Zup
+  3. Xforward, Yforward or Zforward
+
   クロス積(外積)は, 右手系と左手系で定義が異なるので注意.
   https://yaju3d.hatenablog.jp/entry/2013/05/26/215841
 """
@@ -29,9 +33,10 @@ class CoordinateState(abc.ABCMeta):
 
         return wrapper
 
-    def __init__(self, coor_style: str, up_axis: str):
+    def __init__(self, coor_style: str, up_axis: str, forward_axis: str):
         self.coor_style: str = coor_style
         self.up_axis: str = up_axis
+        self.forward_axis: str = forward_axis
 
     @abc.abstractclassmethod
     def look_at(self, 
@@ -44,11 +49,11 @@ class CoordinateState(abc.ABCMeta):
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
 
 
-# 右手座標系 Yup (OpenGL, AutoDesk Maya, SolidWorks 系統)
-class CoorRightYupState(CoordinateState):
+# 右手座標系 Yup-Xforward (OpenGL, AutoDesk Maya, SolidWorks 系統)
+class CoorRightYupXforwardState(CoordinateState):
 
     def __init__(self):
-        super(CoorRightYupState, self).__init__("right", "yup")
+        super(CoorRightYupXforwardState, self).__init__("right", "yup", "xforward")
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -106,11 +111,11 @@ class CoorRightYupState(CoordinateState):
         return M
 
         
-# 右手座標系 Zup (OpenCV, Blender, AutoCAD 系統)
-class CoorRightZupState(CoordinateState):
+# 右手座標系 Zup-Yforward (OpenCV, Blender, AutoCAD 系統)
+class CoorRightZupYforwardState(CoordinateState):
 
     def __init__(self):
-        super(CoorRightZupState, self).__init__("right", "zup")
+        super(CoorRightZupYforwardState, self).__init__("right", "zup", "yforward")
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -168,11 +173,11 @@ class CoorRightZupState(CoordinateState):
         return M
 
 
-# 左手座標系 Yup (Direct3D, Metal, Unity 系統)
-class CoorLeftYupState(CoordinateState):
+# 左手座標系 Yup-Zforward (Direct3D, Metal, Unity 系統)
+class CoorLeftYupZforwardState(CoordinateState):
 
     def __init__(self):
-        super(CoorLeftYupState, self).__init__("left", "yup")
+        super(CoorLeftYupZforwardState, self).__init__("left", "yup", "zforward")
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -229,11 +234,11 @@ class CoorLeftYupState(CoordinateState):
         return M
 
 
-# 左手座標系 Zup (Unreal Engine 系統)
-class CoorLeftZupState(CoordinateState):
+# 左手座標系 Zup-Xforward (Unreal Engine 系統)
+class CoorLeftZupXforwardState(CoordinateState):
 
     def __init__(self):
-        super(CoorLeftZupState, self).__init__("left", "zup")
+        super(CoorLeftZupXforwardState, self).__init__("left", "zup", "xforward")
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 

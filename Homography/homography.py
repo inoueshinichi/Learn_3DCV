@@ -1,7 +1,9 @@
 """ホモグラフィ
-@note
+@note ホモグラフィ
 ある平面から別の平面へ写像する2Dの射影変換.
 平面は画像や3D上の平面を指す.
+2Dホモグラフィと3Dホモグラフィの2種類がある.
+
 ホモグラフィの用途(例)
 1. 画像の位置合わせ
 2. 修正
@@ -9,23 +11,25 @@
 4. パノラマ作成
 etc...
 
-@note
+@note 2Dホモグラフィ行列H
 ・2Dの同次座標
 m' = [x',y',w']^T
-m = [x,y,w]
-・ホモグラフィ行列
-H = [
-    [h1, h2, h3],
+m  = [x,y,w]
+H = [[h1, h2, h3],
     [h4, h5, h6],
     [h7, h8, h9]]
-・射影変換
-m'=Hm
+8自由度
+射影変換: m'=Hm 
 
-@note 
-同次座標の点はスケールと一緒に定義されているので, 
-m=[x,y,z]=[αx,αy,αz]=[x/w,y/w,1]は, いずれも同じ2D点を指す.
-ホモグラフィ行列Hは, スケールと一緒に定義されるので, 8自由度を持つ.
-同次座標の2D点mは, 画像座標x,yと一致させるために点をw=1で正規化する.
+@note 3Dホモグラフィ行列H
+・3Dの同次座標
+M' = [x',y',z',w']^T
+M  = [x, y, z, w]^T
+H = [[h1,h2,h3,h4],
+    [h5,h6,h7,h8],
+    [h9,h10,h11,h12]]
+11自由度
+射影変換 M'=HM
 
 @note
 点群の扱い方. 点の集合は, [DxN]の配列になる. データは列.
@@ -33,14 +37,14 @@ m=[x,y,z]=[αx,αy,αz]=[x/w,y/w,1]は, いずれも同じ2D点を指す.
 
 @note
 ホモグラフィ行列の算出
-step1. 2D-2Dの対応点を準備
+step1. 2D-2D(3D-3D)の対応点を準備
 step2. DLT(Direct Linear Transformation)で同次連立方程式`Ax=0`を準備
 step3. DLTの同次連立方程式`Ax=0`をSVD(特異値分解)で最小二乗法`min||Ax||`の最適解を求める.
 step4. 最適解のランク整理?
 step5. RANSACでノイズ耐性を得る
 
-@note
-DLTによる`Ax=0`
+@note 2DホモグラフィのDLT法による同次連立方程式
+`Ax=0`
 x=[h1,h2,h3,h4,h5,h6,h7,h8,h9]^T
 
 ※ 1つの対応点につき方程式が2個得られる.
@@ -53,6 +57,10 @@ A=[
     [-x1n, -y1n, -1, 0, 0, 0, x1n*x2n, y1n*x2n, x2n], j=n
     [0, 0, 0, -x1n, -y1n, -1, x1n*y2n, y1n*y2n, y2n],
 ]
+
+@note 3DホモグラフィのDLT法による同次連立方程式
+`Ax=0`
+x = [h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11,h12]^TAZ
 
 """
 
@@ -74,44 +82,21 @@ from type_hint import *
 
 from ransac import Ransac, RansacModel
 
-def homo_normalize(homo_v: np.ndarray) -> np.ndarray:
-    """2Dor3Dの同次座標の正規化
 
-    Args:
-        homo_v (np.ndarray): 2Dor3Dの同次座標[DxN]
-        D: 座標系の次元
-        N: 座標点の個数
-
-    Returns:
-        np.ndarray: 正規化した同次座標[DxN]
+def find_homography3D(planar1_pts_3d: np.ndarray, planar2_pts_3d: np.ndarray, eps: float = 1e-9) -> np.ndarray:
     """
 
-    # 2D or 3D homo
-    if homo_v.shape[0] != 2 or homo_v.shape[0] != 3:
-        raise ValueError(f"Not match shape (2or3, N). Given is {homo_v.shape}")
-    
-    N: int = homo_v.shape[1]
-    return homo_v / homo_v[-1,:].reshape(-1, N)
-
-def homo_make(v: np.ndarray) -> np.ndarray:
-    """2Dor3D座標から同次座標を作成
-
     Args:
-        v (np.ndarray): 2Dor3Dの座標[DxN]
-        D: 座標系の次元
-        N: 座標点の個数
+        planar1_pts_3d (np.ndarray): _description_
+        planar2_pts_3d (np.ndarray): _description_
+        eps (float, optional): _description_. Defaults to 1e-9.
 
     Returns:
-        np.ndarray: 同次座標[(D+1)xN]
+        np.ndarray: _description_
     """
-    # 2D or 3D
-    if v.shape[0] != 2 or v.shape[0] != 3:
-        raise ValueError(f"Not match shape (2or3, N). Given is {v.shape}")
-    
-    N: int = v.shape[1]
-    return np.vstack((v, np.ones((1, N))))
 
-def find_homography(planar1_pts: np.ndarray, planar2_pts: np.ndarray) -> np.ndarray:
+
+def find_homography2D(planar1_pts: np.ndarray, planar2_pts: np.ndarray, eps: float = 1e-9) -> np.ndarray:
     """DLT法とSVDによる最小二乗最適解で, ホモグラフィ行列Hを求める.
        2D座標は同次座標系(x,y,w)
 
@@ -129,7 +114,6 @@ def find_homography(planar1_pts: np.ndarray, planar2_pts: np.ndarray) -> np.ndar
                          planar2_pts.shape: {planar2_pts_shape}")
     
     ''' 点群の標準化 (数値計算上重要) '''
-    eps: float = 1e-9
     # planar1
     m1 = np.mean(planar1_pts[:2], axis=1) # [2x1] (mean_x, mean_y)
     std1 = np.std(planar1_pts[:2], axis=1) # [2x1] (std_x, std_y)
@@ -167,21 +151,27 @@ def find_homography(planar1_pts: np.ndarray, planar2_pts: np.ndarray) -> np.ndar
     return H / H[2,2]
 
 
-class RansacHomographyModel(RansacModel):
+class RansacHomography2DModel(RansacModel):
     def __init__(self):
-        pass
+        super(RansacHomography2DModel, self).__init__()
 
     @RansacModel.overrides(RansacModel)
     def fit(self, data: np.ndarray) -> Any:
-        """ホモグラフィ行列Hを求める
+        """4つの対応点からホモグラフィ行列Hを求める
 
         Args:
-            data (np.ndarray): データセット[NxD] N: データ数, D:データ次元数
+            data (np.ndarray): データセット[4xD] 4: データ数, D:データ次元数
 
         Returns:
             Any: ホモグラフィ行列H[3x3]
         """
-        pass
+        data = data.T # 転置
+        
+        # 第一平面の点群と第二平面の点群に分割
+        planar1_pts = data[:3, :] # [3x4]
+        planar2_pts = data[3:, :] # [3x4]
+
+        return find_homography2D(planar1_pts, planar2_pts)
 
     @RansacModel.overrides(RansacModel)
     def get_error(self, data: np.ndarray, estimated_model: Any) -> np.ndarray:
@@ -189,20 +179,36 @@ class RansacHomographyModel(RansacModel):
 
         Args:
             data (np.ndarray): データセット[NxD] N: データ数, D:データ次元数
-            estimated_model (Any): 誤差計算に使用する推定モデル
+            D = 6 : (x1,y1,w1,x2,y2,w2)
+            estimated_model (Any): 誤差計算に使用する推定モデル H[3x3] (np.ndarray)
 
         Returns:
             np.ndarray: 二乗誤差の配列[Nx1]
         """
-        pass
+        data = data.T # 転置 [6xN]
+
+        # 第一平面の点群と第二平面の点群に分割
+        planar1_pts = data[:3, :] # [3xN]
+        planar2_pts = data[3:, :] # [3xN]
+
+        # ホモグラフィHで第一平面の点群を第2平面の点群に変換
+        transformed_pts = estimated_model @ planar1_pts # [3xN]
+
+        # 同次座標系を正規化(w=1)
+        transformed_pts = transformed_pts / transformed_pts[-1, :] # [3xN] / [1xN] = [3xN] with w = 1
+
+        # 二乗誤差を計算 (L2ロス)
+        errors = np.sqrt(np.sum((planar2_pts - transformed_pts) ** 2, axis=0)) # [1xN]
+
+        return errors
 
 
-def find_homography_with_ransac(planar1_pts: np.ndarray, 
-                                planar2_pts: np.ndarray, 
-                                max_iter: int = 1000,
-                                match_threshold: int = 10,
-                                inlier_mask: bool = False) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
-    """Ransacを用いたホモグラフィ行列Hのロバスト推定
+def find_homography2D_with_ransac(planar1_pts: np.ndarray, 
+                                  planar2_pts: np.ndarray, 
+                                  match_threshold: float = 10,
+                                  max_iter: int = 1000,
+                                  inlier_mask: bool = False) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    """Ransacを用いた2D用ホモグラフィ行列Hのロバスト推定
 
     Args:
         planar1_pts (np.ndarray): 第一平面の2D点群[3xN]
@@ -214,4 +220,19 @@ def find_homography_with_ransac(planar1_pts: np.ndarray,
     Returns:
         Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]: ロバストモデルH, インライアのマスク
     """
-    pass
+    # RansacHomography
+    model = RansacHomography2DModel()
+    ransac = Ransac(required_min_num_data=4, # ホモグラフィは最低4つの対応点で推定できる.
+                    required_inliers=10,
+                    match_threshold=match_threshold,
+                    max_iter=max_iter)
+    
+    # 対応点を1つのデータ形式として連結
+    data = np.vstack((planar1_pts, planar2_pts)) # [6xN] (x1,y1,w1,x2,y2,w2)
+    data = data.T # 転置[Nx6]
+
+    # Ransacによるロバストな推定モデルの取得
+    robust_H, inlier_mask = ransac.execute(data=data, model=model)
+
+    return robust_H, inlier_mask
+

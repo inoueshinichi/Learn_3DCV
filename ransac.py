@@ -58,14 +58,14 @@ class Ransac:
     def __init__(self, 
                  required_min_num_data: int,
                  required_inliers: int,
+                 match_threshold: float,
                  max_iter: int = 1000, 
-                 match_threshold: float = 10, 
                  seed: Optional[int] = None):
     
         self.required_min_num_data: int = required_min_num_data
         self.required_inliers: int = required_inliers # インライア個数の要求値
-        self.max_iter: int = max_iter # 最大反復回数
         self.match_threshold : float = match_threshold # 誤差閾値. この閾値以下のデータをインライアとみなす
+        self.max_iter: int = max_iter # 最大反復回数
         self.seed: Optional[int] = seed
         
     def set_seed(self, seed: int):
