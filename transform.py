@@ -173,19 +173,3 @@ def get_trans(M: np.ndarray) -> Tuple[float, float, float]:
 
     return (tx, ty, tz)
 
-def look_at(target_pos: np.ndarray, 
-            camera_pos: np.ndarray, 
-            geometry_context: GeometryContext,
-            up_axis: Tuple[float, float, float]) -> np.ndarray:
-    """カメラのView行列[4x4]を求める
-
-    Args:
-        target_pos (np.ndarray): ターゲットの位置ベクトル
-        camera_pos (np.ndarray): カメラ中心の位置ベクトル
-        geometry_context: 座標系定義
-        up (Tuple[float,float,float], optional): カメラの上向きベクトル.
-        
-    Returns:
-        np.ndarray: カメラView行列[4x4]
-    """
-    return geometry_context.look_at(target_pos, camera_pos, up_axis)

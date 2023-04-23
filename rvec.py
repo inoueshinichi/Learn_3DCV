@@ -11,22 +11,24 @@ import numpy as np
 
 from type_hint import *
 
-def rvec(n: np.ndarray, theta_rad: float) -> np.ndarray:
+def make_rvec(n: np.ndarray, theta: float) -> np.ndarray:
     """回転行列の計算
 
     Args:
         n (np.ndarray): 方向ベクトル(単位ベクトル)
-        theta_rad (float): 回転量
+        theta (float): 回転角 [rad]
 
     Returns:
         np.ndarray: 回転ベクトル[3x1]
     """
     if n.shape != (3,1):
         raise ValueError(f"Not match shape (3,1). Given is {n.shape}")
-    
-    return theta_rad * n
 
-def rvec_rot(v: np.ndarray, rvec: np.ndarray) -> np.ndarray:
+    n /= np.linalg.norm(n)
+        
+    return theta * n
+
+def rot_with_rvec(v: np.ndarray, rvec: np.ndarray) -> np.ndarray:
     """回転ベクトルによる点の回転
 
     Args:

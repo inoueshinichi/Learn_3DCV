@@ -19,11 +19,33 @@ import math
 
 import numpy as np
 
+
 from transform import lerp
+from geometry_context import GeometryContext
 
 from type_hint import *
 
-def quat_dot(q: np.ndarray, p: np.ndarray) -> float:
+def make_quat(n: np.ndarray, theta: float) -> np.ndarray:
+    """方向ベクトルと回転量からクォータニオンを求める
+
+    Args:
+        n (np.ndarray): 方向ベクトル[3x1]
+        theta (float): 回転量 [rad]
+
+    Returns:
+        np.ndarray: クォータニオン[4x1]
+    """
+    n /= np.linalg.norm(n) # 単位ベクトル
+
+    s2 = math.sin(theta/2)
+    c2 = math.cos(theta/2)
+    qx, qy, qz = n[0]*s2, n[1]*s2, n[2]*s2
+    qw = c2
+
+    return np.array([qx, qy, qz, qw], dtype=np.float32)
+
+
+def dot_quat(q: np.ndarray, p: np.ndarray) -> float:
     """クォータニオンの内積
 
     Args:
@@ -35,7 +57,7 @@ def quat_dot(q: np.ndarray, p: np.ndarray) -> float:
     """
     return np.dot(q, p)
 
-def quat_slerp(q: np.ndarray, p: np.ndarray, f: float) -> np.ndarray:
+def slerp_quat(q: np.ndarray, p: np.ndarray, f: float) -> np.ndarray:
     """クォータニオンの球面補完
 
     Args:
@@ -46,7 +68,7 @@ def quat_slerp(q: np.ndarray, p: np.ndarray, f: float) -> np.ndarray:
     Returns:
         np.ndarray: 球面補完クォータニオン[4x1]
     """
-    raw_cosm: float = quat_dot(q, p)
+    raw_cosm: float = dot_quat()(q, p)
     cosom: float = -raw_cosm
 
     if raw_cosm >= 0.0:
@@ -73,7 +95,7 @@ def quat_slerp(q: np.ndarray, p: np.ndarray, f: float) -> np.ndarray:
 
     return f_nq
 
-def quat_lerp(q: np.ndarray, p:np.ndarray, f: float) -> np.ndarray:
+def lerp_quat(q: np.ndarray, p:np.ndarray, f: float) -> np.ndarray:
     """クォータニオンの線形補完
 
     Args:
@@ -234,7 +256,7 @@ def update_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     
     q_inv = inv_quat(q) # 逆クォータニオン
     new_quat = cat_quat(q_inv, cat_quat(p, q))
-    new_quat = norm_quat(new_quat) # 単位クォータニオン
+    new_quat = normalize_quat(new_quat) # 単位クォータニオン
     return new_quat
 
 
@@ -342,3 +364,44 @@ def quat_to_rvec(q: np.ndarray) -> np.ndarray:
 
     return theta * np.array([nx, ny, nz], dtype=np.float32)
 
+def quat_to_target(target: np.ndarray, 
+                  pos: np.ndarray, 
+                  state_quat: np.ndarray,
+                  geometry_context: GeometryContext) -> np.ndarray:
+    """ターゲットの方向にオブジェクトのローカル座標系の前方を向ける(回転)
+
+    Args:
+        target (np.ndarray): ターゲットの位置ベクトル[3x1]
+        pos (np.ndarray): ローカル座標系の位置[3x1]
+        quat (np.ndarray): ローカル座標系のクォータニオン(姿勢)[4x1]
+        geometry_context (GeometryContext): 幾何定義
+
+    Returns:
+        np.ndarray: ローカル座標系のクォータニオン(姿勢)[4x1]
+    """
+
+    if target.shape != (3,1) or pos.shape != (3,1):
+        raise ValueError(f"Not match shape (3,1). Given is target's shape: {target.shape}, pos's shape: {pos.shape}")
+    
+    # ターゲット視線ベクトル
+    pt = target - pos
+    pt /= np.linalg.norm(pt) # [3x1]
+
+    # ローカル座標系の前方ベクトル
+    rot = quat_to_rot(state_quat)
+    forward = geometry_context.forward_axis(rot) # [3x1]
+
+    # 角度θを求める
+    cos_theta = np.dot(pt,forward)
+    theta = math.acos(cos_theta)
+
+    # 方向ベクトルを求める
+    n = np.cross(forward, pt) # クロス積 (forwardとptに垂直方向)
+
+    # クォータニオンを作成
+    q = make_quat(n, theta)
+
+    # qでstate_quatを更新
+    new_quat = update_quat(state_quat, q)
+
+    return new_quat

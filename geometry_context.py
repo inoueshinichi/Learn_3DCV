@@ -66,3 +66,16 @@ class GeometryContext:
                 camera_pos: np.ndarray, 
                 up_axis: Tuple[float, float, float]) -> np.ndarray:
         return self.coor_state.look_at(target_pos, camera_pos, up_axis)
+    
+    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
+        return self.coor_state.forward_axis(rot)
+    
+    def right_axis(self, rot: np.ndarray) -> np.ndarray:
+        return self.coor_state.right_axis(rot)
+    
+    def up_axis(self, rot: np.ndarray) -> np.ndarray:
+        return self.coor_state.up_axis(rot)
+    
+   
+    
+    

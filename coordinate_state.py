@@ -15,6 +15,8 @@ import inspect
 
 import numpy as np
 
+from rotation import axis_x, axis_y, axis_z
+
 from type_hint import *
 
 class CoordinateState(abc.ABCMeta):
@@ -43,7 +45,24 @@ class CoordinateState(abc.ABCMeta):
                target_pos: np.ndarray, 
                camera_pos: np.ndarray, 
                up_axis: Tuple[float, float, float]) -> np.ndarray:
-        
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def right_axis(self, rot: np.ndarray) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def up_axis(self, rot: np.ndarray) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
@@ -101,14 +120,53 @@ class CoorRightYupXforwardState(CoordinateState):
         tz = -1.0 * np.dot(cam_z, camera_pos)
 
         # 4x4行列(ΣWの座標をΣCの座標に変換)
-        M = np.array([
+        V = np.array([
             [cam_x[0], cam_y[0], cam_z[0], tx],
             [cam_x[1], cam_y[1], cam_z[1], ty],
             [cam_x[2], cam_y[2], cam_z[2], tz],
             [0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float32) # 列優先表現
 
-        return M
+        return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_x(rot) # forward : X軸方向ベクトル
+    
+    @CoordinateState.overrides(CoordinateState)
+    def right_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_z(rot) # right : Z軸方向ベクトル
+    
+    @CoordinateState.overrides(CoordinateState)
+    def up_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_y(rot) # up : Y軸方向ベクトル
 
         
 # 右手座標系 Zup-Yforward (OpenCV, Blender, AutoCAD 系統)
@@ -163,14 +221,53 @@ class CoorRightZupYforwardState(CoordinateState):
         tz = -1.0 * np.dot(cam_z, camera_pos)
 
         # 4x4行列(ΣWの座標をΣCの座標に変換)
-        M = np.array([
+        V = np.array([
             [cam_x[0], cam_y[0], cam_z[0], tx],
             [cam_x[1], cam_y[1], cam_z[1], ty],
             [cam_x[2], cam_y[2], cam_z[2], tz],
             [0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float32) # 列優先表現
 
-        return M
+        return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_y(rot) # forward : Y軸方向ベクトル
+    
+    @CoordinateState.overrides(CoordinateState)
+    def right_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_x(rot) # right : X軸方向ベクトル
+    
+    @CoordinateState.overrides(CoordinateState)
+    def up_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_z(rot) # up : Z軸方向ベクトル
 
 
 # 左手座標系 Yup-Zforward (Direct3D, Metal, Unity 系統)
@@ -224,14 +321,53 @@ class CoorLeftYupZforwardState(CoordinateState):
         tz = -1.0 * np.dot(cam_z, camera_pos)
 
         # 4x4行列(ΣWの座標をΣCの座標に変換)
-        M = np.array([
+        V = np.array([
             [cam_x[0], cam_y[0], cam_z[0], tx],
             [cam_x[1], cam_y[1], cam_z[1], ty],
             [cam_x[2], cam_y[2], cam_z[2], tz],
             [0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float32) # 列優先表現
 
-        return M
+        return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_z(rot) # forward : Z軸方向ベクトル
+    
+    @CoordinateState.overrides(CoordinateState)
+    def right_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_x(rot) # right : X軸方向ベクトル
+    
+    @CoordinateState.overrides(CoordinateState)
+    def up_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_y(rot) # up : Y軸方向ベクトル
 
 
 # 左手座標系 Zup-Xforward (Unreal Engine 系統)
@@ -287,11 +423,50 @@ class CoorLeftZupXforwardState(CoordinateState):
         tz = -1.0 * np.dot(cam_z, camera_pos)
 
         # 4x4行列(ΣWの座標をΣCの座標に変換)
-        M = np.array([
+        V = np.array([
             [cam_x[0], cam_y[0], cam_z[0], tx],
             [cam_x[1], cam_y[1], cam_z[1], ty],
             [cam_x[2], cam_y[2], cam_z[2], tz],
             [0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float32) # 列優先表現
 
-        return M
+        return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_x(rot) # forward : X軸方向ベクトル
+    
+    @CoordinateState.overrides(CoordinateState)
+    def right_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_y(rot) # right : Y軸方向ベクトル
+    
+    @CoordinateState.overrides(CoordinateState)
+    def up_axis(self, rot: np.ndarray) -> np.ndarray:
+        """座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return axis_z(rot) # up : Z軸方向ベクトル
