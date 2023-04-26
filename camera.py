@@ -12,6 +12,14 @@ import rvec
 import quartanion
 import euler
 
+from coordinate_state import (
+    CoordinateState,
+    CoorRightYupXforwardState, # OpenGL系
+    CoorRightZupYforwardState, # OpenCV系
+    CoorLeftYupZforwardState,  # DirectX系
+    CoorLeftZupXforwardState,  # UnrealEngine系
+)
+
 from geometry_context import GeometryContext
 from euler_state import EulerState
 
@@ -77,6 +85,43 @@ def camera_pose(V: np.ndarray,
     up = geometry_context.up_axis(rot)
 
     return (trans, rot, (forward, right, up))
+
+def decomp_camera_matrix(P: np.ndarray,
+                         geometry_context: GeometryContext) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Camera行列[3x4]を分解して, K[3x3], R[3x3], T[3x1]を求める
+
+    P[:3,:3]がK・R成分, P[:,3]が並進成分
+
+    Args:
+        P (np.ndarray): Camera行列(射影行列や透視投影行列)[3x4]
+        geometry_context (GeometryContext): 座標系定義
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray]: (K, R, T)
+    """
+    return geometry_context.coor_state.decomp_camera_matrix(P)
+
+
+def center_from_camera_matrix(P: np.ndarray,
+                              geometry_context: GeometryContext) -> np.ndarrya:
+    """Camera行列[3x4]からカメラ中心Cを求める
+
+    Args:
+        P (np.ndarray): Camera行列(射影行列や透視投影行列)[3x4]
+        geome_context (GeometryContext): 座標系定義
+
+    Returns:
+        np.ndarrya: 3D上の点: カメラ中心[x,y,z,w]
+    """
+    K, R, T = decomp_camera_matrix(P, geometry_context)
+
+    C = -1.0 * R.T @ T # [3x3][3x1] = [3x1]
+
+    return C
+
+
+    
+
 
 
     

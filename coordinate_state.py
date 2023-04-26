@@ -50,6 +50,13 @@ class CoordinateState(abc.ABCMeta):
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
     
     @abc.abstractclassmethod
+    def decomp_camera_matrix(self,
+                             P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
@@ -128,6 +135,42 @@ class CoorRightYupXforwardState(CoordinateState):
         ], dtype=np.float32) # 列優先表現
 
         return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def decomp_camera_matrix(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Camera行列P[3x4]からK[3x3],R[3x3],T[3x1]に分解する
+
+        Args:
+            P (np.ndarray): Camera行列P[3x4]
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray, np.ndarray]: (K, R, T)
+        """
+        if P.shape != (3,4):
+            raise ValueError(f"Not match shape (3,4) of camera mat. Given is {P.shape}")
+    
+        # P[:,:3](3x3)をKとRに分解する (RQ分解: QR分解の派生種(行列の順番が異なるだけ). Rが上三角行列(=K), Q直行行列(=R))
+        K, R = np.linalg.rq(P[:,:3]) # Kは上三角行列
+
+        # 多分, カメラ座標系のとり方で, K,Rの符号を入れか得る必要がある
+
+        '''RQ分解は一意に決まらず, 正か負の2つの解がある.
+        回転行列Rの行列式を正にしたい(そうしないと, 座標軸が反転する)ので,
+        必要に応じて変換行列Tの符号を反転させている.
+        '''
+         # Kの対角成分が正になるようにする
+        T = np.diag(np.sign(np.diag(K))) # e.g np.dialg([+1,-1,+1])
+        # 行列式det(T)をチェック. 
+        # 行列式は, 1次方程式の可解性(正則行列の有無)の判断, 幾何的には, ±拡大率(マイナスは反転)
+        if np.linalg.det(T) < 0:
+            T[1,1] *= -1 # fyの符号を反転
+
+        K = K @ T
+        R = T @ R # Tはそれ自身が逆行列 TT=I
+        T = np.linalg.inv(K) @ P[:,3] # [3x3]@[3x1]=[3x1]
+
+        return (K, R, T)
+
     
     @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:

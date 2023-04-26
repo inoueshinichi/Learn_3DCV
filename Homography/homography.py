@@ -96,7 +96,33 @@ from type_hint import *
 
 from ransac import Ransac, RansacModel
 
-def find_homography2D(planar1_pts: np.ndarray, planar2_pts: np.ndarray, eps: float = 1e-9) -> np.ndarray:
+
+def l2_error(x1: np.ndarray, x2: np.ndarray, H: np.ndarray) -> np.ndarray:
+    """L2誤差 (二乗誤差)
+
+    Args:
+        x1 (np.ndarray): 第一平面の2D点群[3xN] or [4xN]
+        x2 (np.ndarray): 第二平面の2D点群[3xN] or [4xN]
+        H (np.ndarray): ホモグラフィ行列 [3x3] or [4x4]
+
+    Returns:
+        np.ndarray: 対応点に対応するL2誤差の配列[1xN]
+    """
+    # ホモグラフィHで第一平面の点群を第2平面の点群に変換
+    transformed_x2 = H @ x1 # [3xN]
+
+    # 同次座標系を正規化(w=1)
+    transformed_x2 = transformed_x2 / transformed_x2[-1,:] # [3xN] / [1xN] = [3xN] with w = 1
+
+    # 二乗誤差を計算 (L2ロス)
+    errors = np.sqrt(np.sum((x2 - transformed_x2) ** 2, axis=0)) # [1xN]
+    
+    return errors
+
+
+def find_homography2D(planar1_pts: np.ndarray, 
+                      planar2_pts: np.ndarray, 
+                      eps: float = 1e-9) -> np.ndarray:
     """4点以上の対応点とDLT法・SVDによる最小二乗最適解で, 2Dホモグラフィ行列Hを求める.
        同次座標系(x,y,w)
 
@@ -153,27 +179,6 @@ def find_homography2D(planar1_pts: np.ndarray, planar2_pts: np.ndarray, eps: flo
     # h9=1になるように正規化して返す
     return H / H[-1,-1]
 
-def l2_error(x1: np.ndarray, x2: np.ndarray, H: np.ndarray) -> np.ndarray:
-    """L2誤差 (二乗誤差)
-
-    Args:
-        x1 (np.ndarray): 第一平面の2D点群[3xN] or [4xN]
-        x2 (np.ndarray): 第二平面の2D点群[3xN] or [4xN]
-        H (np.ndarray): ホモグラフィ行列 [3x3] or [4x4]
-
-    Returns:
-        np.ndarray: 対応点に対応するL2誤差の配列[1xN]
-    """
-    # ホモグラフィHで第一平面の点群を第2平面の点群に変換
-    transformed_x2 = H @ x1 # [3xN]
-
-    # 同次座標系を正規化(w=1)
-    transformed_x2 = transformed_x2 / transformed_x2[-1,:] # [3xN] / [1xN] = [3xN] with w = 1
-
-    # 二乗誤差を計算 (L2ロス)
-    errors = np.sqrt(np.sum((x2 - transformed_x2) ** 2, axis=0)) # [1xN]
-    
-    return errors
 
 class RansacHomography2DModel(RansacModel):
     def __init__(self):
@@ -254,8 +259,9 @@ def find_homography2D_with_ransac(planar1_pts: np.ndarray,
     return robust_H_2D, inlier_mask
 
 
-
-def find_homography3D(planar1_3d_pts: np.ndarray, planar2_3d_pts: np.ndarray, eps: float = 1e-9) -> np.ndarray:
+def find_homography3D(planar1_3d_pts: np.ndarray, 
+                      planar2_3d_pts: np.ndarray, 
+                      eps: float = 1e-9) -> np.ndarray:
     """DLT法とSVDによる最小二乗最適解で, 3Dホモグラフィ行列Hを求める.
     同次座標系(x,y,z,w)
 
@@ -394,3 +400,4 @@ def find_homography3D_with_ransac(planar1_3d_pts: np.ndarray,
     robust_H_3D, inlier_mask = ransac.execute(data=data, model=model)
 
     return robust_H_3D, inlier_mask
+
