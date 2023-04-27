@@ -23,7 +23,7 @@ F = [[f1,f2,f3],
 基礎行列Fはスケールが不変なので, 8自由度になる.
 
 エピポーラ拘束 
-m1j^T*F*m2j = 0
+m2j^T*F*m1j = 0
 
 DLTによる同次連立方程式
 `Ax=0`
@@ -34,10 +34,10 @@ min |Ax| 解 -> A = UΣV^T の最小特異値に対応するV^Tの列ベクト�
 ※1対応点に対して1つの方程式が得られる.
 x = [f1,f2,f3,f4,f5,f6,f7,f8,f9]
 A = [
-    [x1j*x2j, x1j*y2j, x1j*w2j, y1j*x2j, y1j*y2j, y1j*w2j, w1j*x2j, w1j*y2j, w1j*w2j] : j = 1
+    [x2j*x1j, x2j*y1j, x2j*w1j, y2j*x1j, y2j*y1j, y2j*w1j, w2j*x1j, w2j*y1j, w2j*w1j] : j = 1
     :
     :
-    [x1n*x2n, x1n*y2n, x1n*w2n, y1n*x2n, y1n*y2n, y1n*w2n, w1n*x2n, w1n*y2n, w1n*w2n] : j = n
+    [x2n*x1n, x2n*y1n, x2n*w1n, y2n*x1n, y2n*y1n, y2n*w1n, w2n*x1n, w2n*y1n, w2n*w1n] : j = n
 ]
 + RANSAC
 """
@@ -82,7 +82,8 @@ def sampson_error(x1: np.ndarray, x2: np.ndarray, F: np.ndarray) -> np.ndarray:
 
 
 def find_fundamental(img1_pts: np.ndarray, img2_pts: np.ndarray) -> np.ndarray:
-    """正規化8点アルゴリズムによる基礎行列Fの推定
+    """正規化8点アルゴリズムによる基礎行列Fの推定.
+    @warning 8点法は平面シーンでは破錠するので, 1平面上にすべての特徴点がある場合使用できない.
     2D同次座標(x,y,w) 
 
     Args:
@@ -128,15 +129,15 @@ def find_fundamental(img1_pts: np.ndarray, img2_pts: np.ndarray) -> np.ndarray:
     # DLT法
     A = np.zeros((N, 9), dtype=np.float32)
     for i in range(0, N):
-        A[i] = [x1[0,i]*x2[0,i], \
-                x1[0,1]*x2[1,i], \
-                x1[0,i]*x2[2,i], \
-                x1[1,i]*x2[0,i], \
-                x1[1,i]*x2[1,i], \
-                x1[1,i]*x2[2,i], \
-                x1[2,i]*x2[0,i], \
-                x1[2,i]*x2[1,i], \
-                x1[2,i]*x2[2,i] ] # 9列
+        A[i] = [x2[0,i]*x1[0,i], \
+                x2[0,1]*x1[1,i], \
+                x2[0,i]*x1[2,i], \
+                x2[1,i]*x1[0,i], \
+                x2[1,i]*x1[1,i], \
+                x2[1,i]*x1[2,i], \
+                x2[2,i]*x1[0,i], \
+                x2[2,i]*x1[1,i], \
+                x2[2,i]*x1[2,i] ] # 9列
     
     # 最小二乗法 min |Ax| SVDで解く
     U,S,V = np.linalg.svd(A)
@@ -188,18 +189,19 @@ class RansacFundamentalModel(RansacModel):
 def find_fundamental_with_ransac(img1_pts: np.ndarray, 
                                  img2_pts: np.ndarray,
                                  match_threashold: float = 1e-6,
-                                 max_iter: int = 5000) -> np.ndarray:
+                                 max_iter: int = 5000) -> Tuple[np.ndarray, np.ndarray]:
     """RANSACによるロバストな基礎行列Fの推定
+    @warning 8点法は平面シーンでは破錠するので, 1平面上にすべての特徴点がある場合使用できない.
     2D同次座標系[x,y,w]
 
     Args:
         img1_pts (np.ndarray): 画像1上の点群 [3xN]
         img2_pts (np.ndarray): 画像2上の点群 [3xN]
-        max_iter (int, optional): Ransacの最大反復回数. Defaults to 1000.
         match_threshold (int, optional): インライア閾値. Defaults to 3.
+        max_iter (int, optional): Ransacの最大反復回数. Defaults to 5000.
 
         インライア閾値に使用する誤差はサンプソン距離.
-        Sampson = diag(x1j^2 @ F @ x2j)^2 / (Fx1j[0])^2 + (Fx1j[1])^2 + (Fx2j[0])^2 + (Fx2j[1])^2
+        Sampson = diag(m1j^2 @ F @ m2j)^2 / (Fm1j[0])^2 + (Fm1j[1])^2 + (Fm2j[0])^2 + (Fm2j[1])^2
 
     Returns:
         np.ndarray: ロバストな基礎行列F[3x3]
@@ -219,4 +221,3 @@ def find_fundamental_with_ransac(img1_pts: np.ndarray,
     robust_F, inlier_mask = ransac.execute(data=data, model=model)
 
     return robust_F, inlier_mask
-

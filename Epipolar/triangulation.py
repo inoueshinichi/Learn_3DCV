@@ -81,11 +81,9 @@ def triangulate_with_multi_persvective(num_rastration_points: int,
         
         pt3d_list.append(X)
 
-            
     return pt3d_list
         
-
-
+        
 def triangulate_with_binary_persvective(img1_pts_list: List[np.ndarray], 
                                         img2_pts_list: List[np.ndarray], 
                                         P1: np.ndarray, 

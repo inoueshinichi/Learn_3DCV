@@ -75,7 +75,11 @@ class GeometryContext:
     
     def up_axis(self, rot: np.ndarray) -> np.ndarray:
         return self.coor_state.up_axis(rot)
-    
+
+
+
+
+
    
     
     
