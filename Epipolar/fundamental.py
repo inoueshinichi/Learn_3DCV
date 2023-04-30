@@ -19,8 +19,9 @@ m2j_normalized = √2 * (m2j - mean(m2j)) / std(m2j[:2]))
 
 F = [[f1,f2,f3],
      [f4,f5,f6],
-     [f,7,f8,f9]]
-基礎行列Fはスケールが不変なので, 8自由度になる.
+     [f7,f8,f9]]
+@warning 基礎行列Fにはスケール不定性があるので, 8自由度になる
+右は同じ基礎行列を表す. s*F=F (sはスケール変数)
 
 エピポーラ拘束 
 m2j^T*F*m1j = 0
@@ -144,8 +145,10 @@ def find_fundamental(img1_pts: np.ndarray, img2_pts: np.ndarray) -> np.ndarray:
     F = V[-1].reshape(3,3) # 最小特異値に対応する直行行列Vのベクトル
 
     # Fの制約 rank(F)=2, det(F)=0
+    # 推定に使ったデータにノイズが混ざっており, rank(F)=2,det(F)=0である可能性はほぼ0%なので, 
+    # 第3成分の特異値を0にして, 近似的にFの制約を満たす.
     U,S,V = np.linalg.svd(F)
-    S[2] = 0 # 第3成分の特異値を0にする
+    S[2] = 0 
     F = U @ np.diag(S) @ V
 
     # 正規化を元に戻す

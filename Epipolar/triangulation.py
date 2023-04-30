@@ -36,6 +36,7 @@ from euler_state import EulerState
 
 from type_hint import *
 
+
 def triangulate_with_multi_persvective(num_rastration_points: int,
                                        img_view_pts_list: List[List[np.ndarray]],
                                        P_list: List[np.ndarray]) -> List[np.ndarray]:

@@ -126,8 +126,10 @@ def l2_error(x1: np.ndarray, x2: np.ndarray, H: np.ndarray) -> np.ndarray:
 def find_homography2D(planar1_pts: np.ndarray, 
                       planar2_pts: np.ndarray, 
                       eps: float = 1e-9) -> np.ndarray:
-    """4点以上の対応点とDLT法・SVDによる最小二乗最適解で, 2Dホモグラフィ行列Hを求める.
+    """2Dホモグラフィ行列Hを求める.
        同次座標系(x,y,w)
+
+       4点以上の対応点とDLT法・SVDによる最小二乗最適解.
 
     Args:
         planar1_pts (np.ndarray): 第一平面の2D点群[3xN]

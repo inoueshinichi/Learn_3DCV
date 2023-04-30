@@ -1,4 +1,32 @@
 """カメラのView行列に関数処理
+
+カメラ行列 P = K(R|T) [3x4] : 透視投影
+@note カメラ行列Pはスケール不定性がある
+P = [
+    [p11,p12,p13,p14], = P1^T
+    [p21,p22,p23,p24], = P1^T
+    [p31,p32,p33,p34]  = P3^T
+]
+
+m = [x,y,w], M = [X,Y,Z,W]
+s*m = K(P|T) @ M
+
+カメラPose行列 (wRc|wTc) : ワールド座標系Σwからカメラ座標系Σcへのポーズ(姿勢,並進)
+カメラView行列 (cRw|cTw) = (R|T)
+@note R = wRc^T = cRw, T = -R^T @ T
+
+カメラ内部パラメータ行列 K [3x3] : 上三角行列
+K = [
+    [fx, 1/cosθ, cx], = [fx, s, cx]
+    [0, fy/sinθ, cy], = [0, fy, cy]
+    [0,  0,  1]       
+]
+@note Kの各要素の単位はすべて[pixel]
+
+fx = f/δx, fy = f/δy
+f : レンズ焦点距離 [mm]
+δx : 水平方向撮像素子サイズ [mm/pixel]
+δy : 垂直方向撮像素子サイズ [mm/pixel]
 """
 
 import os
@@ -49,7 +77,7 @@ def look_at(target_pos: np.ndarray,
 
 def camera_pose(V: np.ndarray, 
                 geometry_context: GeometryContext) -> Tuple[np.ndarray, np.ndarray, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """View行列[4x4]からカメラの位置, 姿勢, 各軸方向ベクトルを求める
+    """View行列[4x4]からカメラの位置wTc, 姿勢wRc, 各軸方向ベクトル[rx,ry,rz]を求める
 
     Args:
         V (np.ndarray): View行列[4x4]
@@ -60,12 +88,13 @@ def camera_pose(V: np.ndarray,
     if V.shape != (4,4):
         raise ValueError(f"Not match shape (4,4) of view mat. Given is {V.shape}")
     
-    # カメラ位置　
-    trans = -V[:3,-1]
-
     # カメラ姿勢
     rot = V[:3,:3].T # 転置必要
+    
+    # カメラ位置　
+    trans = -1.0 * rot @ V[:3,-3]
 
+    # 各軸のベクトル
     forward = geometry_context.forward_axis(rot)
     right = geometry_context.right_axis(rot)
     up = geometry_context.up_axis(rot)
