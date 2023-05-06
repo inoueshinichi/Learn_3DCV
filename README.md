@@ -45,6 +45,10 @@
 8. 三角測量 
 
 
+### Stereo
+1. 平行化(Refine)
+
+### SfM(Structure from Motion)
 
 
 
