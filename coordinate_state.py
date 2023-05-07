@@ -34,6 +34,7 @@ def ncs_make(img_pts: np.ndarray, K: np.ndarray) -> np.ndarray:
 @note 同次座標系
 同次座標の点はスケールと一緒に定義されているので, 
 m=[x,y,z]=[ax,ay,az]=[x/w,y/w,1]は, いずれも同じ2D点を指す.
+最終的に画像座標x,yと一致させるために点をw=1で正規化することになる.
 """
 def hcs_make(v: np.ndarray) -> np.ndarray:
     """2Dor3D座標から同次座標を作成
