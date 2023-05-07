@@ -107,6 +107,7 @@ import sys
 import math
 
 import numpy as np
+import scipy as sp
 from scipy import ndimage
 
 import rotation
@@ -131,7 +132,7 @@ def find_affine3D(planar1_3d_pts: np.ndarray,
 
     Args:
         planar1_3d_pts (np.ndarray): 第一共面の3D点群[4xN]
-        planar2_2d_pts (np.ndarray): 第二共面の2D点群[3xN]
+        planar2_2d_pts (np.ndarray): 第二共面の2D点群[4xN]
         esp (float, optional): ゼロ割防止小数. Defaults to 1e-9.
 
     Returns:
@@ -198,13 +199,15 @@ def get_4pts_indice_of_rectangle_planar_pts(rectangle_planar_3d_objs: np.ndarray
 
 
 def embed_rectangle_planar(embed_rectangle_planar_3d_pts: np.ndarray,
-                           target_planar_3d_pts: np.ndarray) -> np.ndarray:
+                           target_planar_3d_pts: np.ndarray,
+                           devide_triangle_affine: bool = False) -> np.ndarray:
     """3Dアフィン変換による長方形の共面オブジェクト(同一平面上にある点群)の3D点上への埋め込み
     同次座標系(x,y,z,w)
 
     Args:
         embed_rectangle_planar_3d_objs (np.ndarray): 共面オブジェクト(同一平面上にある点群) [4xN]
         target_planar_3d_pts (np.ndarray): 埋め込み先3D内の4点(t1,t2,t3,t4) [4x4] t* = [x,y,z,w]^T
+        devide_triangle_affine (bool) : 分割アフィンワーピングのフラグ
 
     Returns:
         np.ndarray: 埋め込み共面オブジェクト [4xN]
@@ -228,14 +231,23 @@ def embed_rectangle_planar(embed_rectangle_planar_3d_pts: np.ndarray,
     planar1_tri1_3d_pts = planar1_3d_pts[:, [0,1,2]]
     planar2_tri1_3d_pts = target_planar_3d_pts[:, [0,1,2]]
 
-    # 3Dアフィン行列Aを推定
-    A = find_affine3D(planar1_tri1_3d_pts, planar2_tri1_3d_pts)
+    if (devide_triangle_affine):
+        # 第1共面にあるオブジェクト(点群)を複数の三角形に分割する(ドローネの三角形分割)
+        # https://note.nkmk.me/python-scipy-matplotlib-delaunay-voronoi/
+        import scipy as sp
+        planar1_3d_triangles = sp.spatial.Delaunay()
+        pass
 
-    # 共面オブジェクト(点群)の3Dアフィン変換
-    transformed_embed_rectangle_planar3d_pts = A @ embed_rectangle_planar_3d_pts
+    else:
 
-    # w=1に正規化
-    transformed_embed_rectangle_planar3d_pts /= transformed_embed_rectangle_planar3d_pts[:-1,:]
+        # 3Dアフィン行列Aを推定
+        A = find_affine3D(planar1_tri1_3d_pts, planar2_tri1_3d_pts)
+
+        # 共面オブジェクト(点群)の3Dアフィン変換
+        transformed_embed_rectangle_planar3d_pts = A @ embed_rectangle_planar_3d_pts
+
+        # w=1に正規化
+        transformed_embed_rectangle_planar3d_pts /= transformed_embed_rectangle_planar3d_pts[:-1,:]
 
     return transformed_embed_rectangle_planar3d_pts
 
@@ -247,8 +259,8 @@ def find_affine2D(planar1_pts: np.ndarray,
     同次座標系(x,y,w)
 
     Args:
-        planar1_pts (np.ndarray): 第一平面の3D点群[4xN]
-        planar2_pts (np.ndarray): 第二平面の3D点群[4xN]
+        planar1_pts (np.ndarray): 第一平面の2D点群[3xN]
+        planar2_pts (np.ndarray): 第二平面の2D点群[3xN]
         eps (float, optional): ゼロ割防止小数. Defaults to 1e-9.
 
     Returns:
@@ -305,16 +317,16 @@ def alpha_for_triangle2D(planar_pts: np.ndarray, H: int, W: int) -> np.ndarray:
 
     Args:
         planar_pts (np.ndarray): _description_
-        H (int): _description_
-        W (int): _description_
+        H (int): 画像高さ
+        W (int): 画像幅
 
     Returns:
-        np.ndarray: _description_
+        np.ndarray: 透明度マップ (H,W)
     """
 
     alpha = np.zeros((H,W), dtype=np.float32)
-    for i in range(np.min(planar_pts[0]), np.max(planar_pts[0])):
-        for j in range(np.min(planar_pts[1]), np.max(planar_pts[1])):
+    for i in range(np.min(planar_pts[0,:]), np.max(planar_pts[0,:])): # min_x, max_x
+        for j in range(np.min(planar_pts[1,:]), np.max(planar_pts[1,:])): # min_y, max_y
             x = np.linalg.solve(planar_pts, [i,j,1])
             if min(x) > 0: # すべての係数が正の数
                 alpha[i,j] = 1
@@ -328,12 +340,12 @@ def embed_image_in_image(embed_img: np.ndarray,
     同次座標系(x,y,w)
 
     Args:
-        embed_img (np.ndarray): 埋め込み画像 Mono or RGB
-        target_img (np.ndarray): 埋め込み先画像 Mono or RGB
+        embed_img (np.ndarray): 埋め込み画像 Mono or RGB (H,W,C)
+        target_img (np.ndarray): 埋め込み先画像 Mono or RGB (H,W,C)
         target_pts (np.ndarray): 埋め込み先画像内の4点 [3x4]
 
     Returns:
-        np.ndarrray: 埋め込み済み画像 Mono or RGB
+        np.ndarrray: 埋め込み済み画像 Mono or RGB (H,W,C)
     """
 
     if embed_img.shape != target_img.shape:
@@ -387,3 +399,89 @@ def embed_image_in_image(embed_img: np.ndarray,
     img4 = (1-alpha2)*img3 + alpha2*img1_lt_t
 
     return img4
+
+
+def embed_image_in_image_with_devide_affine_warping(
+        embed_img: np.ndarray,
+        target_img: np.ndarray,
+        target_pts: np.ndarray,
+        patches: Tuple[int, int]) -> np.ndarray:
+    """2D分割アフィンワーピングによる画像埋め込み
+    同次座標系(x,y,w)
+
+    Args:
+        embed_img (np.ndarray): 埋め込み画像 Mono or RGB (H,W,C)
+        target_img (np.ndarray): 埋め込み先画像 Mono or RGB (H,W,C)
+        target_pts (np.ndarray): 埋め込み先画像内の制御点 [3xN] Nは偶数
+        patchs (Tuple[int, int]): 縦横のパッチ数(縦,横) N = 縦 * 横
+
+    Returns:
+        np.ndarray: 埋め込み済み画像 Mono or RGB (H,W,C)
+    """
+
+    color_flag: bool = len(target_img.shape) == 3
+
+    if embed_img.shape != target_img.shape:
+        raise ValueError(f"Not match shape. Given embed_img: {embed_img.shape}, target_img: {target_img.shape}")
+
+    N = target_pts.shape[1]
+    if N % 2 != 0:
+        raise ValueError(f"Number of target_points must be even. Given is {N}")
+    
+    rows, cols = patches
+
+    if rows * cols != N:
+        raise ValueError(f"Must rows * cols = {N}. Given is (rows,cols)={patches}")
+    
+    eH = embed_img.shape[0]
+    eW = embed_img.shape[1]
+
+    ePatchH = eH / rows
+    ePatchW = eW / cols
+    ePatchSize = (ePatchH, ePatchW)
+
+    if ePatchH % 2 != 0 or ePatchW %2 != 0:
+        raise ValueError(f"Patch size must be even number. Given is {ePatchSize}")
+    
+    # 出力画像
+    result_img = target_img.copy()
+
+    # 埋め込み画像の制御点を作成 (x,y,w=1)
+    embed_control_pts = np.zeros((rows+1, cols+1, 3), dtype=np.float32)
+    for i in range(0, rows+1):
+        for j in range(0, cols+1):
+
+            # y座標
+            if i == 0:
+                y = 0
+            else:
+                y = i * ePatchH - 1
+
+            # x座標
+            if j == 0:
+                x = 0
+            else:
+                x = j * ePatchW - 1
+
+            embed_control_pts[i,j,:] = np.array([x,y,1], dtype=np.float32)
+
+    # 埋め込み画像の制御点からドロネー三角形分割法によって, 各三角形のインデックスを取得
+    embed_control_pts = embed_control_pts.reshape(-1, 3) # (N,3) 
+    triangles = sp.spacial.Delaunay(embed_control_pts)
+    tri_indices = triangles.simplices # (N,3) (idx_p1,idx_p2,idx_p3)
+
+    # 各三角形毎にアフィン変換による画像埋め込みを行う
+    embed_control_pts = embed_control_pts.T # (3,N)
+    for indice in tri_indices:
+        # 制御点とターゲット点の対応点から三角形を構成する点を3つ選んで, アフィン行列Hを求める
+        H = find_affine2D(embed_control_pts[:,indice], target_pts[:,indice]) # (x,y,w) - (x',y',z')
+
+        # アフィン変換
+        if color_flag:
+            pass
+        else:
+            pass
+
+
+
+
