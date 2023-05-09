@@ -104,9 +104,11 @@ from type_hint import *
 
 from ransac import Ransac, RansacModel
 
+from error_cost_func import squared_errors
 
-def l2_error(x1: np.ndarray, x2: np.ndarray, H: np.ndarray) -> np.ndarray:
-    """L2誤差 (二乗誤差)
+
+def homo_squared_errors(x1: np.ndarray, x2: np.ndarray, H: np.ndarray) -> np.ndarray:
+    """二乗誤差
 
     Args:
         x1 (np.ndarray): 第一平面の2D点群[3xN] or [4xN]
@@ -122,8 +124,8 @@ def l2_error(x1: np.ndarray, x2: np.ndarray, H: np.ndarray) -> np.ndarray:
     # 同次座標系を正規化(w=1)
     transformed_x2 = transformed_x2 / transformed_x2[-1,:] # [3xN] / [1xN] = [3xN] with w = 1
 
-    # 二乗誤差を計算 (L2ロス)
-    errors = np.sqrt(np.sum((x2 - transformed_x2) ** 2, axis=0)) # [1xN]
+    # 各点の誤差(ユークリッド距離)
+    errors = math.sqrt(squared_errors(x2, transformed_x2)) # [1xN] √{ (x1-x2)^2 + (y1-y2)^2 + (z1-z2)^2 }
     
     return errors
 
@@ -231,7 +233,7 @@ class RansacHomography2DModel(RansacModel):
         planar1_pts = data[:3, :] # [3xN]
         planar2_pts = data[3:, :] # [3xN]
 
-        errors = l2_error(planar1_pts, planar2_pts, estimated_model)
+        errors = homo_squared_errors(planar1_pts, planar2_pts, estimated_model)
 
         return errors
 
@@ -374,7 +376,7 @@ class RansacHomography3DModel(RansacModel):
         planar1_3d_pts = data[:4, :] # [4xN]
         planar2_3d_pts = data[4:, :] # [4xN]
 
-        errors = l2_error(planar1_3d_pts, planar2_3d_pts, estimated_model)
+        errors = homo_squared_errors(planar1_3d_pts, planar2_3d_pts, estimated_model)
         return errors
 
 

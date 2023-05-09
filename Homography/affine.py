@@ -121,13 +121,13 @@ from euler_state import EulerState
 from type_hint import *
 
 from ransac import Ransac, RansacModel
-from Homography.homography import l2_error
+from Homography.homography import homo_squared_errors
 
 
 def find_affine3D(planar1_3d_pts: np.ndarray,
                   planar2_3d_pts: np.ndarray,
                   eps: float = 1e-9) -> np.ndarray:
-    """3Dアフィン行列H
+    """3Dアフィン行列H (4つの対応点が必要)
     同次座標系(x,y,z,w)
 
     Args:
@@ -144,8 +144,8 @@ def find_affine3D(planar1_3d_pts: np.ndarray,
                          Given is planar1_3d_pts.shape: {planar1_3d_pts.shape}, \
                          planar2_pts.shape: {planar2_3d_pts_shape}")
     
-    if planar1_3d_pts.shape[1] >= 3:
-        raise ValueError(f"Number of points planar1_3d_pts and planar2_3d_pts must be >= 3. Given is {planar1_3d_pts.shape[1]}")
+    if planar1_3d_pts.shape[1] != 4:
+        raise ValueError(f"Number of points planar1_3d_pts and planar2_3d_pts must be == 4. Given is {planar1_3d_pts.shape[1]}")
 
     ''' 点群の標準化 (数値計算上重要) '''
     # planar1
@@ -169,13 +169,13 @@ def find_affine3D(planar1_3d_pts: np.ndarray,
     planar2_3d_pts = C2 @ planar2_3d_pts # 標準化
 
     # 平均0, 分散1
-    A = np.concatenate((planar1_3d_pts[:3], planar2_3d_pts[:3]), axis=0)
+    A = np.concatenate((planar1_3d_pts[:3], planar2_3d_pts[:3]), axis=0) # (3,4)
     U,S,V = np.linalg.svd(A.T)
 
     # Hartley-Zisserman(第2版)p.130に基づき行列B,Cを求める
     tmp = V[:3].T
-    B = tmp[:3]
-    C = tmp[3:6]
+    B = tmp[:3] # (3,3)
+    C = tmp[3:6] # (3,3)
     tmp2 = np.concatenate((C @ np.linalg.pinv(B), np.zeros((3,1))), axis=1)
     H = np.vstack((tmp2, [0,0,0,1]))
 
@@ -198,64 +198,49 @@ def get_4pts_indice_of_rectangle_planar_pts(rectangle_planar_3d_objs: np.ndarray
     pass
 
 
-def embed_rectangle_planar(embed_rectangle_planar_3d_pts: np.ndarray,
-                           target_planar_3d_pts: np.ndarray,
-                           devide_triangle_affine: bool = False) -> np.ndarray:
+def embed_3d_planar(embed_planar_3d_pts: np.ndarray,
+                    target_planar_3d_pts: np.ndarray) -> np.ndarray:
     """3Dアフィン変換による長方形の共面オブジェクト(同一平面上にある点群)の3D点上への埋め込み
     同次座標系(x,y,z,w)
 
     Args:
-        embed_rectangle_planar_3d_objs (np.ndarray): 共面オブジェクト(同一平面上にある点群) [4xN]
+        embed_planar_3d_objs (np.ndarray): 共面オブジェクト(同一平面上にある点群) [4xN]
         target_planar_3d_pts (np.ndarray): 埋め込み先3D内の4点(t1,t2,t3,t4) [4x4] t* = [x,y,z,w]^T
-        devide_triangle_affine (bool) : 分割アフィンワーピングのフラグ
 
     Returns:
         np.ndarray: 埋め込み共面オブジェクト [4xN]
     """
 
-    if embed_rectangle_planar_3d_pts.shape != target_planar_3d_pts.shape:
-        raise ValueError(f"Not match shape. Given embed_rectangle_planar_3d_pts: {embed_rectangle_planar_3d_pts.shape}, target_planar_3d_pts: {target_planar_3d_pts.shape}")
+    if embed_planar_3d_pts.shape != target_planar_3d_pts.shape:
+        raise ValueError(f"Not match shape. Given embed_rectangle_planar_3d_pts: {embed_planar_3d_pts.shape}, target_planar_3d_pts: {target_planar_3d_pts.shape}")
     
     ''' 共面オブジェクトから4点p1,p2,p3,p4(左上を始点として時計回り)を求める '''
-    idx_p1, idx_p2, idx_p3, idx_p4 = get_4pts_indice_of_rectangle_planar_pts(embed_rectangle_planar_3d_pts)
+    idx_p1, idx_p2, idx_p3, idx_p4 = get_4pts_indice_of_rectangle_planar_pts(embed_planar_3d_pts)
 
     # 同次座標(x,y,z,w)
-    p1 = embed_rectangle_planar_3d_pts[:,idx_p1] # (4,1)
-    p2 = embed_rectangle_planar_3d_pts[:,idx_p2] # (4,1)
-    p3 = embed_rectangle_planar_3d_pts[:,idx_p3] # (4,1)
-    p4 = embed_rectangle_planar_3d_pts[:,idx_p4] # (4,1)
+    p1 = embed_planar_3d_pts[:,idx_p1] # (4,1)
+    p2 = embed_planar_3d_pts[:,idx_p2] # (4,1)
+    p3 = embed_planar_3d_pts[:,idx_p3] # (4,1)
+    p4 = embed_planar_3d_pts[:,idx_p4] # (4,1)
 
     planar1_3d_pts = np.hstack((p1,p2,p3,p4)) # (4,4)
 
-    # 第1共面の右上三角形(3点)
-    planar1_tri1_3d_pts = planar1_3d_pts[:, [0,1,2]]
-    planar2_tri1_3d_pts = target_planar_3d_pts[:, [0,1,2]]
+    # 3Dアフィン行列Hを推定
+    H = find_affine3D(planar1_3d_pts, target_planar_3d_pts)
 
-    if (devide_triangle_affine):
-        # 第1共面にあるオブジェクト(点群)を複数の三角形に分割する(ドローネの三角形分割)
-        # https://note.nkmk.me/python-scipy-matplotlib-delaunay-voronoi/
-        import scipy as sp
-        planar1_3d_triangles = sp.spatial.Delaunay()
-        pass
+    # 共面オブジェクト(点群)の3Dアフィン変換
+    transformed_embed_planar3d_pts = H @ embed_planar_3d_pts
 
-    else:
+    # w=1に正規化
+    transformed_embed_planar3d_pts /= transformed_embed_planar3d_pts[:-1,:]
 
-        # 3Dアフィン行列Aを推定
-        A = find_affine3D(planar1_tri1_3d_pts, planar2_tri1_3d_pts)
-
-        # 共面オブジェクト(点群)の3Dアフィン変換
-        transformed_embed_rectangle_planar3d_pts = A @ embed_rectangle_planar_3d_pts
-
-        # w=1に正規化
-        transformed_embed_rectangle_planar3d_pts /= transformed_embed_rectangle_planar3d_pts[:-1,:]
-
-    return transformed_embed_rectangle_planar3d_pts
+    return transformed_embed_planar3d_pts
 
 
 def find_affine2D(planar1_pts: np.ndarray,
                   planar2_pts: np.ndarray,
                   eps: float = 1e-9) -> np.ndarray:
-    """2Dアフィン行列Hを求める.
+    """2Dアフィン行列H (3つの対応点が必要)
     同次座標系(x,y,w)
 
     Args:
@@ -272,8 +257,8 @@ def find_affine2D(planar1_pts: np.ndarray,
                          Given is planar1_pts.shape: {planar1_pts.shape}, \
                          planar2_pts.shape: {planar2_pts_shape}")
     
-    if planar1_pts.shape[1] >= 3:
-        raise ValueError(f"Number of points planar1_pts and planar2_pts must be >= 3. Given is {planar1_pts.shape[1]}")
+    if planar1_pts.shape[1] != 3:
+        raise ValueError(f"Number of points planar1_pts and planar2_pts must be == 3. Given is {planar1_pts.shape[1]}")
 
     ''' 点群の標準化 (数値計算上重要) '''
     # planar1
@@ -332,6 +317,7 @@ def alpha_for_triangle2D(planar_pts: np.ndarray, H: int, W: int) -> np.ndarray:
                 alpha[i,j] = 1
     return alpha
 
+
 def embed_image_in_image(embed_img: np.ndarray,
                          target_img: np.ndarray,
                          target_pts: np.ndarray) -> np.ndarrray:
@@ -373,10 +359,10 @@ def embed_image_in_image(embed_img: np.ndarray,
     planar2_tri1_pts = target_pts[:, [0,1,2]]
 
     # 2Dアフィン行列A1を推定
-    A1 = find_affine2D(planar1_tri1_pts, planar2_tri1_pts)
+    H1 = find_affine2D(planar1_tri1_pts, planar2_tri1_pts)
 
     # 2Dアフィン変換 with A1
-    img1_rt_t = ndimage.affine_transform(copy_embed_img, A1[:2,:2], (A1[0,2],A1[1,2]), (tH,tW))
+    img1_rt_t = ndimage.affine_transform(copy_embed_img, H1[:2,:2], (H1[0,2],H1[1,2]), (tH,tW))
 
     # 第1三角形の透明度マップ
     alpha1 = alpha_for_triangle2D(planar2_tri1_pts, tH, tW)
@@ -388,10 +374,10 @@ def embed_image_in_image(embed_img: np.ndarray,
     planar2_tri2_pts = target_pts[:, [2,3,0]]
 
     # 2Dアフィン行列A2を推定
-    A2 = find_affine2D(planar1_tri2_pts, planar2_tri2_pts)
+    H2 = find_affine2D(planar1_tri2_pts, planar2_tri2_pts)
 
     # 2Dアフィン with A2
-    img1_lt_t = ndimage.affine_transform(copy_embed_img, A2[:2,:2], (A2[0,2],A2[1,2]), (tH,tW))
+    img1_lt_t = ndimage.affine_transform(copy_embed_img, H2[:2,:2], (H2[0,2],H2[1,2]), (tH,tW))
 
     # 第2三角形の透明度マップ
     alpha2 = alpha_for_triangle2D(planar2_tri2_pts, tH, tW)
@@ -443,6 +429,9 @@ def embed_image_in_image_with_devide_affine_warping(
     if ePatchH % 2 != 0 or ePatchW %2 != 0:
         raise ValueError(f"Patch size must be even number. Given is {ePatchSize}")
     
+    # 変形先画像
+    transform_img = np.zeros(target_img.shape, dtype=np.uint8)
+    
     # 出力画像
     result_img = target_img.copy()
 
@@ -466,6 +455,7 @@ def embed_image_in_image_with_devide_affine_warping(
             embed_control_pts[i,j,:] = np.array([x,y,1], dtype=np.float32)
 
     # 埋め込み画像の制御点からドロネー三角形分割法によって, 各三角形のインデックスを取得
+    # https://note.nkmk.me/python-scipy-matplotlib-delaunay-voronoi/
     embed_control_pts = embed_control_pts.reshape(-1, 3) # (N,3) 
     triangles = sp.spacial.Delaunay(embed_control_pts)
     tri_indices = triangles.simplices # (N,3) (idx_p1,idx_p2,idx_p3)
@@ -478,9 +468,22 @@ def embed_image_in_image_with_devide_affine_warping(
 
         # アフィン変換
         if color_flag:
-            pass
+            for c in range(embed_img.shape[2]):
+                transform_img[:,:,c] = ndimage.affine_transform(
+                    embed_img[:,:,c], H[:2,:2], (H[0,2],H[1,2]), target_img.shape[:2])
         else:
-            pass
+            transform_img = ndimage.affine_transform(
+                embed_img, H[:2,:2], (H[0,2],H[1,2]), target_img.shape[:2])
+        
+        # 三角形の透明度マップ
+        alpha = alpha_for_triangle2D(embed_control_pts[:,indice].astype(np.int32), target_img.shape[0], target_img.shape[1])
+
+        # 三角形を画像に追加する
+        result_img[alpha>0] = transform_img[alpha>0]
+
+    return result_img
+
+
 
 
 

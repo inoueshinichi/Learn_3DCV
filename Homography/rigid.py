@@ -56,7 +56,7 @@ from euler_state import EulerState
 from type_hint import *
 
 from ransac import Ransac, RansacModel
-from Homography.homography import l2_error
+from Homography.homography import homo_squared_errors
 
 
 def find_rigid2D(planar1_pts: np.ndarray, 
