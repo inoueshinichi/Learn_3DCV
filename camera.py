@@ -103,7 +103,7 @@ def camera_pose(V: np.ndarray,
 
 
 def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Camera行列P[3x4]からK[3x3],R[3x3],T[3x1]に分解する
+    """カメラ行列P[3x4]からK[3x3],R[3x3],T[3x1]に分解する
 
     Args:
         P (np.ndarray): Camera行列P[3x4]
@@ -117,6 +117,23 @@ def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarr
     # P[:,:3](3x3)をKとRに分解する (RQ分解: QR分解の派生種(行列の順番が異なるだけ). Rが上三角行列(=K), Q直行行列(=R))
     K, R = np.linalg.rq(P[:,:3]) # Kは上三角行列(カメラ内部パラメータ行列), Rは直行行列(回転行列)
 
+    '''カメラ行列分解後の処理(必須)
+    Step1. 内部キャリブレーション行列KのK[2,2]成分を`1`になるようにK全体を正規化する.
+    Step2. T = diag(sign(diag(K)))を作成
+           Tの対角成分の符号を確認. (K[2,2]は`1`に正規化しているので正)
+           [i]    K[0,0]>0, K[1,1]>0, K[2,2]>0  if det(T) > 0 → fx>0,fy>0. カメラ座標Σcの(ax,ay,az)の反転なし.
+           [ii]   K[0,0]<0, K[1,1]>0, K[2,2]>0  if det(T) < 0 → fx<0.      カメラ座標Σcのax軸が反転している. (鏡映状態)
+           [iii]  K[0,0]>0, K[1,1]<0, K[2,2]>0  if det(T) < 0 → fy<0.      カメラ座標Σcのay軸が反転している. (鏡映状態)
+           [iv]   K[0,0]<0, K[1,1]<0, K[2,2]>0  if det(T) > 0 → fx<0,fy<0  カメラ座標Σcのax軸,ay軸が反転している. (az軸回りに180度回転している状態)
+
+    Step3. Kの対角成分が正になるようにKの符号を反転し, R=[rx,ry,rz]^Tのうち, 反転しているr*の符号を反転する.
+        P[:3,:3] = KR = K @ T @ inv(T) @ R. (※ inv(T)=T)
+        [i] Nothing.
+        [ii] K = K @ T, R = T @ R
+        [iii] K[0,1]*=-1, K = K @ T, R = T @ R
+        [iv] Assert [iv]の状態は通常起きない. 発生すれば, カメラ行列Pの作成が間違っている.
+    '''
+
     # K[2,2]成分で全体を正規化K[2,2]=1
     K /= K[2,2]
 
@@ -126,10 +143,17 @@ def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarr
     '''
     # Kの対角成分が正になるようにする
     T = np.diag(np.sign(np.diag(K))) # e.g np.dialg([-1,+1,+1]) fx<0
-    
-    if T[0,0] < 0 and T[1,1] < 0:
-        assert(not (T[0,0] < 0 and T[1,1] < 0), f"Assert sign both fx and fy are minus. fx: {K[0,0]}, fy: {K[1,1]}")
 
+    # [iv]
+    assert not (T[0,0]<0 and T[1,1]<0), f"Assert decomposition for camera matrix P. Sign of both fx and fy are minus. Given is K: {K}"
+
+    # [ii] or [iii]
+    if np.linalg.det(T) < 0:
+        # [iii]
+        if T[1,1] < 0: # fy < 0
+            K[0,1] *= -1 # スキュー成分の符号を反転
+
+    
     # (t11=-1, t22=-1) : NG
     # (t11=+1, t22=+1) : OK
     # (t11=-1, t22=+1) or (t11=+1, t22=-1) : 補正する
