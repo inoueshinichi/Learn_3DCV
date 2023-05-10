@@ -104,6 +104,20 @@ def camera_pose(V: np.ndarray,
 
 def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """カメラ行列P[3x4]からK[3x3],R[3x3],T[3x1]に分解する
+    カメラ座標系は, 右手座標系Zupとする(OpenCV準拠)
+        x : 右方向
+        y : 下方向
+        z : 奥行き方向
+        eye : z軸正の向き
+           eye
+          /
+         z
+        /
+       |----x
+       |
+       y
+       ・正規化画像平面(NIP : Normalize Image Plane)は, 同次座標系(x,y,w=z)で,z=f=1となるxy平面
+       ・視線方向eyeがz軸負の向き(右手系Yup[OpenGL系], 左手系Zup[Unreal系])の場合, w=z=-1となる平面が正規化画像平面(NIP)となる
 
     Args:
         P (np.ndarray): Camera行列P[3x4]
@@ -119,58 +133,51 @@ def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarr
 
     ''' RQ分解は一意に決まらず, 正か負の2つの解がある.
     https://search.yahoo.co.jp/amp/s/mem-archive.com/2019/04/21/post-1778/%3Famp%3D1%26usqp%3Dmq331AQGsAEggAID
-    回転行列Rの行列式を正にしたい(そうしないと, 座標軸が反転する)ので,必要に応じて変換行列Tの符号を反転させている.
+    回転行列Rの行列式を正にしたい(そうしないと, 座標軸が反転する).
     '''
 
     ''' カメラ行列分解後の処理(必須)
     Step1. T = diag(sign(diag(K)))を作成
-           Tの対角成分の符号を確認. (K[2,2]は`1`に正規化しているので正)
-           [1] K[0,0]>0, K[1,1]>0, K[2,2]>0  if det(T) > 0 → fx>0,fy>0. カメラ座標Σcの(ax,ay,az)の反転なし.
-           [2] K[0,0]<0, K[1,1]>0, K[2,2]>0  if det(T) < 0 → fx<0.      カメラ座標Σcのax軸が反転している. (鏡映状態)
-           [3] K[0,0]>0, K[1,1]<0, K[2,2]>0  if det(T) < 0 → fy<0.      カメラ座標Σcのay軸が反転している. (鏡映状態)
-           [4] K[0,0]<0, K[1,1]<0, K[2,2]>0  if det(T) > 0 → fx<0,fy<0  カメラ座標Σcのax軸,ay軸が反転している. (az軸回りに180度回転している状態)
+        Tの対角成分の符号を確認. (K[2,2]は`1`に正規化しているので正)
+        [1] K[0,0]>0, K[1,1]>0, K[2,2]>0  if det(T) > 0 → fx>0,fy>0. カメラ座標Σcの(ax,cy,az)の反転なし. det(R) = +1
+        [2] K[0,0]<0, K[1,1]>0, K[2,2]>0  if det(T) < 0 → fx<0.      カメラ座標Σcのax軸が反転(鏡映状態)   det(R) = -1
+        [3] K[0,0]>0, K[1,1]<0, K[2,2]>0  if det(T) < 0 → fy<0.      カメラ座標Σcのay軸が反転(鏡映状態)   det(R) = -1
+        [4] K[0,0]>0, K[1,1]>0, K[2,2]<0  if det(T) < 0 → z=-1がNIP. カメラ座標Σcのaz軸が反転(鏡映状態)   det(R) = -1
+        [5] K[0,0]>0, K[1,1]<0, K[2,2]<0  if det(T) > 0 → fy<0.      カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
+        [6] K[0,0]<0, K[1,1]>0, K[2,2]<0  if det(T) > 0 → fx<0.      カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
+        [7] K[0,0]<0, K[1,1]<0, K[2,2]>0  if det(T) > 0 → fx<0,fy<0. カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
+        [8] K[0,0]<0, K[1,1]<0, K[2,2]<0  if det(T) < 0 → fx<0,fy<0. z=-1がNIP. カメラ座標Σcの全軸が反転してる(鏡映状態) det(R) = -1
 
     Step2. Kの対角成分が正になるようにKの符号を反転し, R=[rx,ry,rz]^Tのうち, 反転しているr*の符号を反転する.
         P[:3,:3] = KR = K @ T @ inv(T) @ R. (※ inv(T)=T)
-        [i] Nothing.
-        [ii] K = K @ T, R = T @ R
-        [iii] K[0,1]*=-1, K = K @ T, R = T @ R
-        [iv] Assert [iv]の状態は通常起きない. 発生すれば, カメラ行列Pの作成が間違っている.
+        K = K @ T
+        R = T @ R
+        if det(T) < 0: T[1,1] *= -1
+        Assert 状態[2][3][4]は通常起きない. 発生すれば, カメラ行列Pの作成が間違っている. (間違ってるかも)
 
     Step3. 内部キャリブレーション行列KのK[2,2]成分を`1`になるようにK全体を正規化する.
     '''
 
-    # K[2,2]成分で全体を正規化K[2,2]=1
-    K /= K[2,2]
-
-    
     # Kの対角成分が正になるようにする
     T = np.diag(np.sign(np.diag(K))) # e.g np.dialg([-1,+1,+1]) fx<0
 
-    # [iv]
-    assert not (T[0,0]<0 and T[1,1]<0), f"Assert decomposition for camera matrix P. Sign of both fx and fy are minus. Given is K: {K}"
-
-    # [ii] or [iii]
+    # 通常は, det(T)>0になるはず.
     if np.linalg.det(T) < 0:
-        # [iii]
-        if T[1,1] < 0: # fy < 0
-            K[0,1] *= -1 # スキュー成分の符号を反転
-
-    
-    # (t11=-1, t22=-1) : NG
-    # (t11=+1, t22=+1) : OK
-    # (t11=-1, t22=+1) or (t11=+1, t22=-1) : 補正する
-    # 行列式det(T)をチェック. 
-    # 行列式は, 1次方程式の可解性(正則行列の有無)の判断, 幾何的には, ±拡大率(マイナスは反転)
-    # if np.linalg.det(T) < 0: # det(T) = t11*t22*t33
-    #         T[1,1] *= -1 # fyの符号を反転
+        if not (T[0,0] < 0 and T[1,1] < 0 and T[2,2] < 0):
+            assert False, f"Assert decomposition for camera matrix P. Given is K: {K}"
+        T[1,1] *= -1
         
     # マイナス焦点距離とそれに対応する座標軸の符号を反転
     K = K @ T
     R = T @ R # Tはそれ自身が逆行列 TT=I
-    T = np.linalg.inv(K) @ P[:,3] # [3x3]@[3x1]=[3x1]
 
-    return (K, R, T)
+    # K[2,2]成分で全体を正規化K[2,2]=1
+    K /= K[2,2]
+
+    t = np.linalg.inv(K) @ P[:,3] # [3x3]@[3x1]=[3x1]
+
+    return (K, R, t)
+
 
 def center_from_camera(P: np.ndarray) -> np.ndarrya:
     """Camera行列[3x4]からカメラ中心Cを求める
@@ -182,10 +189,8 @@ def center_from_camera(P: np.ndarray) -> np.ndarrya:
     Returns:
         np.ndarrya: 3D上の点: カメラ中心[x,y,z,w]
     """
-    K, R, T = decomp_camera(P)
-
-    C = -1.0 * R.T @ T # [3x3][3x1] = [3x1]
-
+    K, R, t = decomp_camera(P)
+    C = -1.0 * R.T @ t # [3x3][3x1] = [3x1]
     return C
 
 
