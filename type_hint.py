@@ -8,7 +8,7 @@ from typing import (
     AnyStr,
     Generator,
     Text, # >= Python 3.5.2
-    Annotated, # >= Python 3.9
+    # Annotated, # >= Python 3.9
     TypedDict, # >= Python 3.8
     Final, # >= Python 3.8
     ClassVar, # >= Python 3.5.3

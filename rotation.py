@@ -9,7 +9,6 @@ import numpy as np
 
 from type_hint import *
 
-from euler_state import EulerState
 
 def axis_x(rot: np.ndarray) -> np.ndarray:
     """回転行列からX軸ベクトルを抽出
@@ -257,15 +256,3 @@ def rot_to_quat(rot: np.ndarray) -> np.ndarray:
     # quat = [qw,qx,qy,qz] = qw + qx*i + qy*j + qz*k
     return np.array([qw,qx,qy,qz], dtype=np.float32)
 
-def rot_to_euler(rot: np.ndarray,
-                 euler_state: EulerState) -> Tuple[float, float, float]:
-    """回転行列からオイラー角をm止める
-
-    Args:
-        rot (np.ndarray): 回転行列[3x3]
-        euler_state (EulerState): オイラー角の定義
-
-    Returns:
-        Tuple[float, float, float]: オイラー角(θ1,θ2,θ3)
-    """
-    return euler_state.from_rot(rot)
