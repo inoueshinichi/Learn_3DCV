@@ -5,58 +5,14 @@ import scipy as sp
 
 np.set_printoptions(suppress=True) # 指数表記禁止
 
+from rvec import make_rvec, rvec_to_rot
 from rotation import ax_rot, ay_rot, az_rot
 from euler import rot_to_euler
 from geometry_context import GeometryContext
 
-def test_mirror_rot():
-    # 回転 : 内因性ZXYオイラー(θ1=30,θ2=45,θ3=60)
-    ax_deg = 30
-    ay_deg = 45
-    az_deg = 60
-    print(f"(θx,θy,θz)=({ax_deg},{ay_deg},{az_deg})")
-    wRc = az_rot(math.radians(az_deg)) @ ax_rot(math.radians(ax_deg)) @ ay_rot(math.radians(ay_deg))
-    sR = wRc.T # (3,3)
-    print("sR\n", sR)
 
-    # x軸とz軸を入れ替え
-    mirror_rot_1 = np.zeros((3,3), dtype=np.float32)
-    mirror_rot_1[:,0] = sR[:,2]
-    mirror_rot_1[:,1] = sR[:,1]
-    mirror_rot_1[:,2] = sR[:,0]
-    # print("mirror_rot_1\n", mirror_rot_1)
-    # print("det(mirror_rot_1)=", np.linalg.det(mirror_rot_1))
+    
 
-    # y軸の反転
-    mirror_rot_2 = np.zeros((3,3), dtype=np.float32)
-    mirror_rot_2[:,0] = sR[:,0]
-    mirror_rot_2[:,1] = -sR[:,1]
-    mirror_rot_2[:,2] = sR[:,2]
-    mirror_rot_2 = mirror_rot_2
-    # print("mirror_rot_2\n", mirror_rot_2)
-    # print("det(mirror_rot_2)=", np.linalg.det(mirror_rot_2))
-
-    # 2軸反転
-    mirror_rot_3 = np.zeros((3,3), dtype=np.float32)
-    mirror_rot_3[:,0] = -sR[:,0]
-    mirror_rot_3[:,1] = sR[:,1]
-    mirror_rot_3[:,2] = -sR[:,2]
-    print("mirror_rot_3\n", mirror_rot_3)
-    print("det(mirror_rot_3)=", np.linalg.det(mirror_rot_3))
-
-    inv_mirror_rot_3 = np.linalg.inv(mirror_rot_3)
-
-    ope_rot = sR @ inv_mirror_rot_3
-    print("ope_rot\n", ope_rot)
-
-    geo_ctx = GeometryContext()
-    theta1, theta2, theta3 = rot_to_euler(ope_rot, geo_ctx.euler_state)
-    print("theta1_deg", math.radians(theta1))
-    print("theta2_deg", math.radians(theta2))
-    print("theta3_deg", math.radians(theta3))
-
-    # print("ori_rot\n", ori_rot)
-    # print("det(ori_rot)=", np.linalg.det(ori_rot))
 
 
 
@@ -420,6 +376,8 @@ if __name__ == "__main__":
     # test3_decomp_camera() # det(T)=+1, det(dR)=+1 -> OK
     # test4_decomp_camera() # y軸反転, -fy -> OK
     # test5_decomp_camera() # det(R)=-1 ?
-    test6_decomp_camera() # det(T)=+1, det(dR)=+1 -> OK
-    # test_mirror_rot()
+    # test6_decomp_camera() # det(T)=+1, det(dR)=+1 -> OK
+
+    # 回転行列の性質に関するテスト
+    test_neg2_rot()
 

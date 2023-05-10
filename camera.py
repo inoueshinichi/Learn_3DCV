@@ -1,6 +1,6 @@
-"""カメラのView行列に関数処理
+"""カメラ
 
-カメラ行列 P = K(R|T) [3x4] : 透視投影
+Projection(Camera)行列 P = K(R|T) [3x4] : 投影変換 + 透視変換
 @note カメラ行列Pはスケール不定性がある
 P = [
     [p11,p12,p13,p14], = P1^T
@@ -16,11 +16,20 @@ s*m = K(P|T) @ M
 @note R = wRc^T = cRw, T = -R^T @ T
 
 カメラ内部パラメータ行列 K [3x3] : 上三角行列
+カメラ座標系ΣcのZ軸正の向きのZ=1に像面を作る場合, K[2,2] == 1 : OpenCV系(右手座標系Zup)
 K = [
     [fx, 1/cosθ, cx], = [fx, s, cx]
     [0, fy/sinθ, cy], = [0, fy, cy]
-    [0,  0,  1]       
-]
+    [0,  0,  1]]
+
+  = [[1/δx, s cx],
+    [0, 1/δy, cy],
+    [0, 0, 1]]
+    @
+    [[f, 0, 0],
+     [0, f, 0],
+     [0, 0, 1]]
+
 @note Kの各要素の単位はすべて[pixel]
 
 fx = f/δx, fy = f/δy
@@ -104,26 +113,50 @@ def camera_pose(V: np.ndarray,
 
 def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """カメラ行列P[3x4]からK[3x3],R[3x3],T[3x1]に分解する
-    カメラ座標系は, 右手座標系Zupとする(OpenCV準拠)
+        ・カメラ座標系は, 右手座標系Zupとする(OpenCV準拠).
+        視線方向eyeがz軸正の向き.
         x : 右方向
         y : 下方向
         z : 奥行き方向
         eye : z軸正の向き
-           eye
-          /
-         z
-        /
-       |----x
-       |
-       y
-       ・正規化画像平面(NIP : Normalize Image Plane)は, 同次座標系(x,y,w=z)で,z=f=1となるxy平面
-       ・視線方向eyeがz軸負の向き(右手系Yup[OpenGL系], 左手系Zup[Unreal系])の場合, w=z=-1となる平面が正規化画像平面(NIP)となる
+            eye
+           /
+          z
+         /
+        |----x
+        |
+        y
+
+        ・正規化画像平面(NIP : Normalize Image Plane)は, 
+          同次座標系(x,y,w=z)でz=f=1となるxy平面. つまり, (x/z, y/z)
+                |
+                |
+                |
+        ------(0,0)-------x
+                |
+                |
+                y
+
+        ・画像平面(画像座標系)は左上が(0,0)であると仮定する
+        ・画像平面はz=fとなるxy平面. つまり, (f*x/z + cx, f*y/z + cy)
+        ・カメラ中心(cx, cy)
+        (0,0)------------x
+        |
+        |
+        |
+        y
+
+        この場合, 
+        K = [
+            [fx>0, s, cx],
+            [0, fy>0, cy],
+            [0, 0, 1]]]
 
     Args:
         P (np.ndarray): Camera行列P[3x4]
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray]: (K, R, T)
+        Tuple[np.ndarray, np.ndarray, np.ndarray]: (K, R, t)
     """
     if P.shape != (3,4):
         raise ValueError(f"Not match shape (3,4) of camera mat. Given is {P.shape}")
@@ -139,37 +172,38 @@ def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarr
     ''' カメラ行列分解後の処理(必須)
     Step1. T = diag(sign(diag(K)))を作成
         Tの対角成分の符号を確認. (K[2,2]は`1`に正規化しているので正)
-        [1] K[0,0]>0, K[1,1]>0, K[2,2]>0  if det(T) > 0 → fx>0,fy>0. カメラ座標Σcの(ax,cy,az)の反転なし. det(R) = +1
-        [2] K[0,0]<0, K[1,1]>0, K[2,2]>0  if det(T) < 0 → fx<0.      カメラ座標Σcのax軸が反転(鏡映状態)   det(R) = -1
-        [3] K[0,0]>0, K[1,1]<0, K[2,2]>0  if det(T) < 0 → fy<0.      カメラ座標Σcのay軸が反転(鏡映状態)   det(R) = -1
-        [4] K[0,0]>0, K[1,1]>0, K[2,2]<0  if det(T) < 0 → z=-1がNIP. カメラ座標Σcのaz軸が反転(鏡映状態)   det(R) = -1
-        [5] K[0,0]>0, K[1,1]<0, K[2,2]<0  if det(T) > 0 → fy<0.      カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
-        [6] K[0,0]<0, K[1,1]>0, K[2,2]<0  if det(T) > 0 → fx<0.      カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
-        [7] K[0,0]<0, K[1,1]<0, K[2,2]>0  if det(T) > 0 → fx<0,fy<0. カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
-        [8] K[0,0]<0, K[1,1]<0, K[2,2]<0  if det(T) < 0 → fx<0,fy<0. z=-1がNIP. カメラ座標Σcの全軸が反転してる(鏡映状態) det(R) = -1
+        ○ [1] K[0,0]>0, K[1,1]>0, K[2,2]>0  if det(D) > 0 → fx>0,fy>0. カメラ座標Σcの(ax,cy,az)の反転なし. det(R) = +1
+        x [2] K[0,0]<0, K[1,1]>0, K[2,2]>0  if det(D) < 0 → fx<0.      カメラ座標Σcのax軸が反転(鏡映状態)   det(R) = -1
+        x [3] K[0,0]>0, K[1,1]<0, K[2,2]>0  if det(D) < 0 → fy<0.      カメラ座標Σcのay軸が反転(鏡映状態)   det(R) = -1
+        x [4] K[0,0]>0, K[1,1]>0, K[2,2]<0  if det(D) < 0 → z=-1がNIP. カメラ座標Σcのaz軸が反転(鏡映状態)   det(R) = -1
+        ○ [5] K[0,0]>0, K[1,1]<0, K[2,2]<0  if det(D) > 0 → fy<0.      カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
+        ○ [6] K[0,0]<0, K[1,1]>0, K[2,2]<0  if det(D) > 0 → fx<0.      カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
+        ○ [7] K[0,0]<0, K[1,1]<0, K[2,2]>0  if det(D) > 0 → fx<0,fy<0. カメラ座標Σcの回転姿勢がおかしい.    det(R) = +1
+        x [8] K[0,0]<0, K[1,1]<0, K[2,2]<0  if det(D) < 0 → fx<0,fy<0. z=-1がNIP. カメラ座標Σcの全軸が反転してる(鏡映状態) det(R) = -1
 
     Step2. Kの対角成分が正になるようにKの符号を反転し, R=[rx,ry,rz]^Tのうち, 反転しているr*の符号を反転する.
-        P[:3,:3] = KR = K @ T @ inv(T) @ R. (※ inv(T)=T)
-        K = K @ T
-        R = T @ R
-        if det(T) < 0: T[1,1] *= -1
+        P[:3,:3] = KR = K @ D @ inv(D) @ R. (※ inv(D)=D)
+        K = K @ D
+        R = D @ R
+        if det(D) < 0: D[1,1] *= -1
         Assert 状態[2][3][4]は通常起きない. 発生すれば, カメラ行列Pの作成が間違っている. (間違ってるかも)
 
     Step3. 内部キャリブレーション行列KのK[2,2]成分を`1`になるようにK全体を正規化する.
     '''
 
     # Kの対角成分が正になるようにする
-    T = np.diag(np.sign(np.diag(K))) # e.g np.dialg([-1,+1,+1]) fx<0
+    D = np.diag(np.sign(np.diag(K))) # e.g np.dialg([-1,+1,+1]) fx<0
 
-    # 通常は, det(T)>0になるはず.
-    if np.linalg.det(T) < 0:
-        if not (T[0,0] < 0 and T[1,1] < 0 and T[2,2] < 0):
+    # 通常は, det(D)>0になるはず. 
+    # もしdet(D)<0になるとすれば, カメラ行列構成時に画像平面が左下(0,0)の定義で行った場合, diag(D)=(+1,-1,+1)がありえる.
+    if np.linalg.det(D) < 0:      
+        if not(D[0,0] < 0 and D[1,1] < 0 and D[2,2] < 0):
             assert False, f"Assert decomposition for camera matrix P. Given is K: {K}"
-        T[1,1] *= -1
+        D[1,1] *= -1
         
     # マイナス焦点距離とそれに対応する座標軸の符号を反転
-    K = K @ T
-    R = T @ R # Tはそれ自身が逆行列 TT=I
+    K = K @ D
+    R = D @ R # Tはそれ自身が逆行列 TT=I
 
     # K[2,2]成分で全体を正規化K[2,2]=1
     K /= K[2,2]
@@ -181,16 +215,21 @@ def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarr
 
 def center_from_camera(P: np.ndarray) -> np.ndarrya:
     """Camera行列[3x4]からカメラ中心Cを求める
+    カメラ中心は, PC=0 を満たす(PC = K(R|t)C = KRC + Kt = 0).
+    なぜなら, C = -R^T*t
+
+    min |PC| -> SVDの最小特異値に対応する右特異ベクトル.
+    P = UΣV^T
+    C = V^T[-1,:]
 
     Args:
         P (np.ndarray): Camera行列(射影行列や透視投影行列)[3x4]
-        geome_context (GeometryContext): 座標系定義
-
+    
     Returns:
         np.ndarrya: 3D上の点: カメラ中心[x,y,z,w]
     """
-    K, R, t = decomp_camera(P)
-    C = -1.0 * R.T @ t # [3x3][3x1] = [3x1]
+    U,Σ,V = np.linalg.svd(P) # (3,3)@(3,3)@(3,4)
+    C = V[-1,:]
     return C
 
 
