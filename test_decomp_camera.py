@@ -11,11 +11,6 @@ from euler import rot_to_euler
 from geometry_context import GeometryContext
 
 
-    
-
-
-
-
 # 座標系の軸反転なし(鏡映状態でない)
 def test1_decomp_camera():
 
@@ -68,6 +63,7 @@ def test1_decomp_camera():
     print("K\n", K)
     print("R\n", R)
     print("det(R)=", np.linalg.det(R))
+
 
 # 座標系の軸反転なし(鏡映状態でない)
 def test2_decomp_camera():

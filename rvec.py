@@ -12,21 +12,20 @@ import numpy as np
 from type_hint import *
 
 def make_rvec(n: np.ndarray, theta: float) -> np.ndarray:
-    """回転行列の計算
+    """回転ベクトルの計算
 
     Args:
-        n (np.ndarray): 方向ベクトル(単位ベクトル)
+        n (np.ndarray): 方向ベクトル(単位ベクトル) [3xN]
         theta (float): 回転角 [rad]
 
     Returns:
-        np.ndarray: 回転ベクトル[3x1]
+        np.ndarray: 回転ベクトル[3xN]
     """
-    if n.shape != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is {n.shape}")
-
-    n /= np.linalg.norm(n)
-        
+    if n.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,) or (3,1). Given is {n.shape}")
+    
     return theta * n
+
 
 def rot_with_rvec(v: np.ndarray, rvec: np.ndarray) -> np.ndarray:
     """回転ベクトルによる点の回転
@@ -38,26 +37,12 @@ def rot_with_rvec(v: np.ndarray, rvec: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 回転後の点群[3xN]
     """
-    if rvec.shape != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is {rvec.shape}")
-    
     if v.shape[0] != 3:
         raise ValueError(f"Not match shape (3,N). Given is {v.shape}")
 
-    theta = np.linalg.norm(rvec) # rad
-    c = math.cos(theta)
-    s = math.sin(theta)
-    n = rvec / theta # 方向ベクトル [3x1]
+    rot = rvec_to_rot(rvec) # (3,3)
 
-    # 方向ベクトルの歪対称行列
-    Nx = np.array([
-        [0, -n[2], n[1]],
-        [n[2], 0, -n[0]],
-        [-n[1], n[0], 0]
-    ], dtype=np.float32) # [3x3]
-
-    # 回転ベクトルによる点群の回転
-    return v*c + n * (n @ v) * (1 - c) + Nx @ v * s
+    return rot @ v # 点群の回転
 
      
 def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
@@ -84,37 +69,16 @@ def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: [3x3]回転行列
     """
-    if rvec.shape != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is {rvec.shape}")
+    if rvec.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,) or (3,1). Given is {rvec.shape}")
     
     theta = np.linalg.norm(rvec) # 回転角[-pi, pi]
     n = rvec / theta # 方向ベクトル (3,1)
     nx, ny, nz = n[0], n[1], n[2]
-    # print("theta", theta)
-    # print("n", n)
-
+   
     c = math.cos(theta) # cos
     s = math.sin(theta) # sin
 
-    # バグがある
-    # I = np.ones((3,3), dtype=np.float32)
-    # nn = n @ n.T # (3,3)
-    # print("nn", nn)
-
-    # Sn = np.zeros((3,3), dtype=np.float32)
-    # Sn[0,1] = -n[2] # -nz
-    # Sn[0,2] = n[1]  # ny
-    # Sn[1,0] = n[2]  # nz
-    # Sn[1,2] = -n[0] # -nx
-    # Sn[2,0] = -n[1] # ny
-    # Sn[2,1] = n[0]  # nx
-    # print("Sn", Sn)
-
-    # # 回転行列
-    # rot = c * I + (1 - c) * nn + s * Sn
-    # print("rot", rot)
-
-    # こっちなら正常
     rot = np.zeros((3,3), dtype=np.float32)
     rot[0,0] = nx * nx * (1 - c) + c
     rot[0,1] = nx * ny * (1 - c) - nz * s
@@ -128,6 +92,7 @@ def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
     
     return rot
 
+
 def rvec_to_quat(rvec: np.ndarray) -> np.ndarray:
     """回転ベクトルからクォータニオンを求める
 
@@ -137,8 +102,8 @@ def rvec_to_quat(rvec: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: クォータニオン[4x1] (qx,qy,qz,qw)
     """
-    if rvec.shape != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is {rvec.shape}")
+    if rvec.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,) or (3,1). Given is {rvec.shape}")
     
     theta = np.linalg.norm(rvec) # 回転量
     n = rvec / theta # 方向ベクトル (単位ベクトル)

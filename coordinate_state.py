@@ -11,9 +11,10 @@ from rotation import axis_x, axis_y, axis_z
 
 from type_hint import *
 
-def ncs_make(img_pts: np.ndarray, K: np.ndarray) -> np.ndarray:
-    """カメラ内部パラメータ行列Kを用いて画像平面上の点を正規化座標に変換
-    同次座標系(x,y,w)
+def make_nip(img_pts: np.ndarray, K: np.ndarray) -> np.ndarray:
+    """カメラ内部パラメータ行列Kを用いて画像平面上の点を正規化画像座標系に変換
+    正規化画像座標系(Normalized Image Plane Coordinate)
+    同次座標系(x,y,w=1)
 
     Args:
         img_pts (np.ndarray): 画像平面上の点群[3xN]
@@ -30,14 +31,18 @@ def ncs_make(img_pts: np.ndarray, K: np.ndarray) -> np.ndarray:
     return npts
 
 
-"""同次座標系 (Homogeneous Coordinate System)
+"""同次座標系 (Homogeneous[Perspective] Coordinate)
 @note 同次座標系
 同次座標の点はスケールと一緒に定義されているので, 
-m=[x,y,z]=[ax,ay,az]=[x/w,y/w,1]は, いずれも同じ2D点を指す.
-最終的に画像座標x,yと一致させるために点をw=1で正規化することになる.
+M=[x,y,z,w]=[sx,sy,sz,sw]=[x/w,y/w,z/w,1]は, いずれも同じ3D点を表す.
+m=[x,y,w]=[sx,sy,sw]=[x/w,y/w,1]は, いずれも同じ2D点を表す.
+最終的にユークリッド座標系の(x,y,z)と一致させるために点をw=1で正規化することになる.
+
+@note Perspective Division
+3D空間を2D空間に投影する方法. M=[x,y,z,1] -> m = [x/z,y/z,1]
 """
-def hcs_make(v: np.ndarray) -> np.ndarray:
-    """2Dor3D座標から同次座標を作成
+def make_homo(v: np.ndarray) -> np.ndarray:
+    """同次座標を作成
 
     Args:
         v (np.ndarray): 2Dor3Dの座標[DxN]
@@ -55,7 +60,7 @@ def hcs_make(v: np.ndarray) -> np.ndarray:
     return np.vstack((v, np.ones((1, N))))  
 
 
-def hcs_normalize(homo_v: np.ndarray) -> np.ndarray:
+def normalize_homo(homo_v: np.ndarray) -> np.ndarray:
     """2Dor3Dの同次座標の正規化
 
     Args:
