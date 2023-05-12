@@ -55,12 +55,12 @@ class CoordinateState(metaclass=abc.ABCMeta):
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
     
-    # @abc.abstractclassmethod
-    # def decomp_camera(self, P: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    #     func_name = inspect.currentframe().f_code.co_name
-    #     class_name = self.__class__.__name__
-    #     raise NotImplementedError(f"No implement {func_name} on {class_name}")
-    
+    @abc.abstractclassmethod
+    def quat_to_rot(self, qw : float, qx : float, qy : float qz) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+        
     @abc.abstractclassmethod
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
@@ -143,6 +143,7 @@ class CoorRightYupXforwardState(CoordinateState):
         ], dtype=np.float32) # 列優先表現
 
         return V
+
     
     @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -249,6 +250,43 @@ class CoorRightZupYforwardState(CoordinateState):
 
         return V
     
+
+    @CoordinateState.overrides(CoordinateState)
+    def quat_to_rot(qw : float, qx : float, qy : float qz) -> np.ndarray:
+        """クォータニオンから回転行列に変換
+
+        右手系クォータニオン
+        rot = 
+        [[1-2*qy^2-2*qz^2, 2*qx*qy-2*qw*qz, 2*qx*qz+2*qw*qy],
+         [2*qx*qy+2*qw*qz, 1-2*qx^2-2*qz^2, 2*qy*qz+-2*qw*qx],
+         [2*qx*qz-2*qw*qy, 2*qy*qz+2*qw*qx, 1-2*qx^2-2*qy^2]]
+
+        Args:
+            rot (np.ndarray): クォータニオン [4x1]
+
+        Returns:
+            np.ndarray: 回転行列
+        """
+
+        # 右手系クォータニオン
+        r11 = 1 - 2 * qy ** 2 - 2 * qz ** 2 # [0,0]
+        r12 = 2 * qx * qy - 2 * qw * qz
+        r13 = 2 * qx * qz + 2 * qw * qy
+        r21 = 2 * qx * qy + 2 * qw * qz
+        r22 = 1 - 2 * qx ** 2 - 2 * qz ** 2 # [1,1]
+        r23 = 2 * qy * qz - 2 * qw * qx
+        r31 = 2 * qx * qz - 2 * qw * qy
+        r32 = 2 * qy * qz + 2 * qw * qx
+        r33 = 1 - 2 * qx ** 2 - 2 * qy ** 2 # [2,2]
+
+        rot = np.array([
+            [r11,r12,r13],
+            [r21,r22,r23],
+            [r31,r32,r33]
+        ], dtype=np.float32)
+
+        return rot
+    
     @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
         """座標系の前方ベクトル(基底:単位ベクトル)を求める
@@ -351,6 +389,42 @@ class CoorLeftYupZforwardState(CoordinateState):
         ], dtype=np.float32) # 列優先表現
 
         return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def quat_to_rot(qw : float, qx : float, qy : float qz) -> np.ndarray:
+        """クォータニオンから回転行列に変換
+
+        左手クォータニオン
+        rot = 
+        [[1-2*qy^2-2*qz^2, 2*qx*qy-2*qw*qz, 2*qx*qz+2*qw*qy],
+         [2*qx*qy+2*qw*qz, 1-2*qx^2-2*qz^2, 2*qy*qz+-2*qw*qx],
+         [2*qx*qz-2*qw*qy, 2*qy*qz+2*qw*qx, 1-2*qx^2-2*qy^2]]
+
+        Args:
+            rot (np.ndarray): クォータニオン [4x1]
+
+        Returns:
+            np.ndarray: 回転行列
+        """
+
+        # 右手系クォータニオン
+        r11 = 1 - 2 * qy ** 2 - 2 * qz ** 2 # [0,0]
+        r12 = 2 * qx * qy - 2 * qw * qz
+        r13 = 2 * qx * qz + 2 * qw * qy
+        r21 = 2 * qx * qy + 2 * qw * qz
+        r22 = 1 - 2 * qx ** 2 - 2 * qz ** 2 # [1,1]
+        r23 = 2 * qy * qz - 2 * qw * qx
+        r31 = 2 * qx * qz - 2 * qw * qy
+        r32 = 2 * qy * qz + 2 * qw * qx
+        r33 = 1 - 2 * qx ** 2 - 2 * qy ** 2 # [2,2]
+
+        rot = np.array([
+            [r11,r12,r13],
+            [r21,r22,r23],
+            [r31,r32,r33]
+        ], dtype=np.float32)
+
+        return rot
     
     @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:

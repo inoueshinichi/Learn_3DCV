@@ -128,11 +128,11 @@ def dt_quat(q: np.ndarray, omega: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: クォータニオンの時間微分[4x1]
     """
-    if q.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    if q.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {q.shape}")
     
-    if omega.shape() != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is {q.shape}")
+    if omega.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,1) or (3,). Given is {q.shape}")
     
     return -0.5 * cat_quat(np.r_[omega, 0], q)
 
@@ -149,8 +149,8 @@ def norm_quat(q: np.ndarray) -> float:
     Returns:
         float: クォータニオンのノルム
     """
-    if q.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    if q.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {q.shape}")
     
     return np.linalg.norm(q)
 
@@ -166,8 +166,8 @@ def normalize_quat(q: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 単位クォータニオン[4x1]
     """
-    if q.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    if q.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {q.shape}")
     
     return q / norm_quat(q)
 
@@ -189,8 +189,8 @@ def conj_quat(q: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 共役クォータニオン[4x1] (-qx,-qy,-qz,qw)
     """
-    if q.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    if q.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {q.shape}")
     
     return np.array([-q[0], -q[1], -q[2], q[3]], dtype=np.float32)
 
@@ -206,10 +206,11 @@ def inv_quat(q: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 逆クォータニオン[4x1]
     """
-    if q.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    if q.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {q.shape}")
     
     return conj_quat(q) / (norm_quat(q) ** 2)
+
 
 def cat_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     """クォータニオンのグラスマン積
@@ -257,12 +258,15 @@ def update_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 更新済みクォータニオン[4x1]
     """
-    if p.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {p.shape}")
+    if p.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {p.shape}")
+    
     if norm_quat(p) != 1.0:
         raise ValueError(f"Not match norm 1.0. Given is {norm_quat(p)}")
-    if q.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    
+    if q.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {q.shape}")
+    
     if norm_quat(q) != 1.0:
         raise ValueError(f"Not match norm 1.0. Given is {norm_quat(q)}")
     
@@ -282,7 +286,7 @@ def rotate_points_by_quat(v: np.ndarray, q: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 回転後の点(位置ベクトル)
     """
-    if q.shape != (4,1):
+    if q.shape[0] != 4:
         raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
     
     if norm_quat(q) != 1.0:
@@ -312,6 +316,7 @@ def quat_to_rot(q: np.ndarray) -> np.ndarray:
     Args:
         q (np.ndarray): クォータニオン[4x1] (qx,qy,qz,qw)
 
+        左手系クォータニオン
         rot = 
         [[1-2*qy^2-2*qz^2, 2*qx*qy+2*qw*qz, 2*qx*qz-2*qw*qy],
          [2*qx*qy-2*qw*qz, 1-2*qx^2-2*qz^2, 2*qy*qz+2*qw*qx],
@@ -320,23 +325,35 @@ def quat_to_rot(q: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 回転行列[3x3]
     """
-    if q.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    if q.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {q.shape}")
     
     if norm_quat(q) != 1.0:
         raise ValueError(f"Not match norm 1.0. Given is {norm_quat(q)}")
     
-    qx, qy, qz, qw = q[0], q[1], q[2], q[3]
+    qw, qx, qy, qz = q[0], q[1], q[2], q[3]
     
-    r11 = 1-2*qy**2-2*qz**2
-    r12 = 2*qx*qy+2*qw*qz
-    r13 = 2*qx*qz-2*qw*qy
-    r21 = 2*qx*qy-2*qw*qz
-    r22 = 1-2*qx^2-2*qz^2
-    r23 = 2*qy*qz+2*qw*qx
-    r31 = 2*qx*qz+2*qw*qy
-    r32 = 2*qy*qz-2*qw*qx
-    r33 = 1-2*qx**2-2*qy**2
+    # # 左手系クォータニオン
+    # r11 = 1 - 2 * qy ** 2 - 2 * qz ** 2 # [0,0]
+    # r12 = 2 * qx * qy + 2 * qw * qz
+    # r13 = 2 * qx * qz - 2 * qw * qy
+    # r21 = 2 * qx * qy - 2 * qw * qz
+    # r22 = 1 - 2 * qx ** 2 - 2 * qz ** 2 # [1,1]
+    # r23 = 2 * qy * qz + 2 * qw * qx
+    # r31 = 2 * qx * qz + 2 * qw * qy
+    # r32 = 2 * qy * qz - 2 * qw * qx
+    # r33 = 1 - 2 * qx ** 2 - 2 * qy ** 2 # [2,2]
+
+    # 右手系クォータニオン
+    r11 = 1 - 2 * qy ** 2 - 2 * qz ** 2 # [0,0]
+    r12 = 2 * qx * qy - 2 * qw * qz
+    r13 = 2 * qx * qz + 2 * qw * qy
+    r21 = 2 * qx * qy + 2 * qw * qz
+    r22 = 1 - 2 * qx ** 2 - 2 * qz ** 2 # [1,1]
+    r23 = 2 * qy * qz - 2 * qw * qx
+    r31 = 2 * qx * qz - 2 * qw * qy
+    r32 = 2 * qy * qz + 2 * qw * qx
+    r33 = 1 - 2 * qx ** 2 - 2 * qy ** 2 # [2,2]
 
     rot = np.array([
         [r11,r12,r13],
@@ -345,6 +362,7 @@ def quat_to_rot(q: np.ndarray) -> np.ndarray:
     ], dtype=np.float32)
 
     return rot
+
 
 def quat_to_rvec(q: np.ndarray) -> np.ndarray:
     """クォータニオンから回転ベクトルを求める
@@ -355,8 +373,8 @@ def quat_to_rvec(q: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 回転ベクトル[3x1]
     """
-    if q.shape() != (4,1):
-        raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
+    if q.shape[0] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {q.shape}")
     
     if norm_quat(q) != 1.0:
         raise ValueError(f"Not match norm 1.0. Given is {norm_quat(q)}")

@@ -231,7 +231,7 @@ def rot_to_quat(rot: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: クォータニオン[4x1]
     """
-    if rot.shape() != (3,3):
+    if rot.shape != (3,3):
         raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
     
     r11, r12, r13 = rot[0,0], rot[0,1], rot[0,2]
@@ -251,20 +251,21 @@ def rot_to_quat(rot: np.ndarray) -> np.ndarray:
 
     if k2 >= k3 and k2 >= k4: 
         # max:k2
-        qx = k2 * math.sign(r32-r23)
-        qy = k3 * math.sign(qx*(r21+r12))
-        qz = k4 * math.sign(qx*(r31+r13))
+        qx = k2 * np.sign(r32-r23)
+        qy = k3 * np.sign(qx*(r21+r12))
+        qz = k4 * np.sign(qx*(r31+r13))
     elif k3 >= k2 and k3 >= k4: 
         # max:k3
-        qy = k3 * math.sign(r13-r31)
-        qx = k2 * math.sign(qy*(r21+r12))
-        qz = k4 * math.sign(qy*(r32+r23))
+        qy = k3 * np.sign(r13-r31)
+        qx = k2 * np.sign(qy*(r21+r12))
+        qz = k4 * np.sign(qy*(r32+r23))
     else:
         # max:k4
-        qz = k4 * math.sign(r21-r12)
-        qx = k2 * math.sign(qz*(r13+r31))
-        qy = k3 * math.sign(qz*(r23+r32))
+        qz = k4 * np.sign(r21-r12)
+        qx = k2 * np.sign(qz*(r13+r31))
+        qy = k3 * np.sign(qz*(r23+r32))
     
     # quat = [qw,qx,qy,qz] = qw + qx*i + qy*j + qz*k
-    return np.array([qw,qx,qy,qz], dtype=np.float32)
+    quat = np.array([qw,qx,qy,qz], dtype=np.float32)
+    return quat / np.linalg.norm(quat)
 
