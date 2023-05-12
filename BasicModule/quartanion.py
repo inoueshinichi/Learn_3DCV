@@ -15,17 +15,21 @@
 
 import os
 import sys
+
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
 import math
 
 import numpy as np
 
-
-from transform import lerp
-from geometry_context import GeometryContext
-
 from type_hint import *
 
-def make_quat(n: np.ndarray, theta: float) -> np.ndarray:
+from BasicModule.lerp import lerp
+from BasicModule.geometry_context import GeometryContext
+
+
+def quat(n: np.ndarray, theta: float) -> np.ndarray:
     """方向ベクトルと回転量からクォータニオンを求める
 
     Args:
@@ -56,6 +60,7 @@ def dot_quat(q: np.ndarray, p: np.ndarray) -> float:
         float: 内積
     """
     return np.dot(q, p)
+
 
 def slerp_quat(q: np.ndarray, p: np.ndarray, f: float) -> np.ndarray:
     """クォータニオンの球面補完
@@ -95,6 +100,7 @@ def slerp_quat(q: np.ndarray, p: np.ndarray, f: float) -> np.ndarray:
 
     return f_nq
 
+
 def lerp_quat(q: np.ndarray, p:np.ndarray, f: float) -> np.ndarray:
     """クォータニオンの線形補完
 
@@ -109,6 +115,7 @@ def lerp_quat(q: np.ndarray, p:np.ndarray, f: float) -> np.ndarray:
     f_quat = lerp(q, p, f) # [4x1]
     return f_quat
     
+
 def dt_quat(q: np.ndarray, omega: np.ndarray) -> np.ndarray:
     """クォータニオンの時間微分
 
@@ -129,6 +136,7 @@ def dt_quat(q: np.ndarray, omega: np.ndarray) -> np.ndarray:
     
     return -0.5 * cat_quat(np.r_[omega, 0], q)
 
+
 def norm_quat(q: np.ndarray) -> float:
     """クォータニオンのノルム
 
@@ -145,6 +153,7 @@ def norm_quat(q: np.ndarray) -> float:
         raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
     
     return np.linalg.norm(q)
+
 
 def normalize_quat(q: np.ndarray) -> np.ndarray:
     """クォータニオンの正規化
@@ -170,6 +179,7 @@ def iden_quat() -> np.ndarray:
     """
     return np.array([0,0,0,1], dtype=np.float32)
 
+
 def conj_quat(q: np.ndarray) -> np.ndarray:
     """共役クォータニオン
 
@@ -183,6 +193,7 @@ def conj_quat(q: np.ndarray) -> np.ndarray:
         raise ValueError(f"Not match shape (4,1). Given is {q.shape}")
     
     return np.array([-q[0], -q[1], -q[2], q[3]], dtype=np.float32)
+
 
 def inv_quat(q: np.ndarray) -> np.ndarray:
     """逆クォータニオン
@@ -235,6 +246,7 @@ def cat_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     # 連結したクォータニオンが単位クォータニオンであるとは限らない
     return normalize_quat(qp)
 
+
 def update_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     """クォータニオンpをqで更新
 
@@ -260,7 +272,7 @@ def update_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     return new_quat
 
 
-def rot_quat(v: np.ndarray, q: np.ndarray) -> np.ndarray:
+def rotate_points_by_quat(v: np.ndarray, q: np.ndarray) -> np.ndarray:
     """点(位置ベクトル)をクォータニオンで回転する
 
     Args:

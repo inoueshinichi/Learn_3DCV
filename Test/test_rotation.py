@@ -1,21 +1,66 @@
 """回転(姿勢)の性質に関するテスト
 """
 
+import os
+import sys
+
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
 import math
+import inspect
+
 import numpy as np
 import scipy as sp
 
 np.set_printoptions(suppress=True) # 指数表記禁止
 
-from quartanion import make_quat, dot_quat
-from rvec import make_rvec, rvec_to_rot, rot_with_rvec, rvec_to_quat
-from rotation import ax_rot, ay_rot, az_rot
-from euler import rot_to_euler, euler_to_rot
-from geometry_context import GeometryContext
+from BasicModule.quartanion import quat, dot_quat
+from BasicModule.rvec import rvec, rvec_to_rot, rotate_points_by_rvec, rvec_to_quat
+from BasicModule.rotation import ax_rot, ay_rot, az_rot
+from BasicModule.euler import rot_to_euler, euler_to_rot
+from BasicModule.geometry_context import GeometryContext
+
+from type_hint import *
+from test_util import test_decorator
+
+@test_decorator
+def test_rot_euler():
+    """オイラー角指定による回転行列の作成と逆変換
+    """
+    geo_ctx = GeometryContext() # Inner ZXY
+
+    theta1_deg = 30
+    theta2_deg = 45
+    theta3_deg = 60
+
+    # 回転行列に変換
+    rot = euler_to_rot(theta1_deg=theta1_deg,
+                       theta2_deg=theta2_deg,
+                       theta3_deg=theta3_deg,
+                       euler_state=geo_ctx.euler_state)
+    
+    print("rot\n", rot)
+
+    # オイラー角に逆変換
+    euler1_deg, euler2_deg, euler3_deg = rot_to_euler(rot=rot,
+                                                      euler_state=geo_ctx.euler_state)
+
+    print(f"theta1_deg: {theta1_deg}, euler1_deg: {euler1_deg}")
+    print(f"theta2_deg: {theta2_deg}, euler2_deg: {euler2_deg}")
+    print(f"theta3_deg: {theta3_deg}, euler3_deg: {euler3_deg}")
+
+
+    
 
 
 def test_replace_rot():
-    """R=[rx,ry,rz]のうち, 2軸を入れ替えたもの
+    """R=[rx,ry,rz]のうち, 2軸を入れ替えたもの.
+    e.g, rR=[rz,ry,rx]は回転行列の定義を満たさない.
+    鏡映変換行列になってしまう.
+    回転行列 det(R)=+1
+    鏡映行列 det(rR)=-1
+    @note R,rRともに直行行列 : det(U)=±1
     """
     # 回転 : 内因性ZXYオイラー(θ1=30,θ2=45,θ3=60)
     ax_deg = 30
@@ -81,7 +126,7 @@ def test_neg2_rot():
     dir_vec = sR[:,1]
     dir_vec /= np.linalg.norm(dir_vec)
     dir_vec = dir_vec.reshape(3,1)
-    add_rvec = make_rvec(dir_vec, math.radians(180))
+    add_rvec = rvec(dir_vec, math.radians(180))
     print("add_rvec\n", add_rvec)
 
     # 回転行列に変換
@@ -124,7 +169,7 @@ def test_check_rvec():
     n = np.array([1,0,0], dtype=np.float32) # x軸
     theta = math.radians(60)
     
-    x_rvec = make_rvec(n, theta) # 回転ベクトル
+    x_rvec = rvec(n, theta) # 回転ベクトル
     xR = ax_rot(theta) # 回転行列
 
     # 点群
@@ -133,22 +178,16 @@ def test_check_rvec():
 
     A = xR @ points
     print("A = xR @ points\n", A)
-    B = rot_with_rvec(points,x_rvec)
-    print("B = rot_with_rvec(points,x_rvec)\n", B)
+    B = rotate_points_by_rvec(points,x_rvec)
+    print("B = rotate_points_by_rvec(points,x_rvec)\n", B)
 
     print("diff: A - B\n", A - B)
 
 
-def test_euler():
-    """オイラー角のテスト
-    """
-    geo_ctx = GeometryContext()
-
-
 if __name__ == "__main__":
+    test_rot_euler()
     # test_replace_rot()
     # test_neg1_rot()
     # test_neg2_rot()
     # test_neg3_rot()
     # test_check_rvec()
-    test_euler()

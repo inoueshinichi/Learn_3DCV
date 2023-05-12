@@ -5,13 +5,18 @@ V = (rx, ry, rz)
 
 import os
 import sys
+
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
 import math
 
 import numpy as np
 
 from type_hint import *
 
-def make_rvec(n: np.ndarray, theta: float) -> np.ndarray:
+
+def rvec(n: np.ndarray, theta: float) -> np.ndarray:
     """回転ベクトルの計算
 
     Args:
@@ -27,7 +32,7 @@ def make_rvec(n: np.ndarray, theta: float) -> np.ndarray:
     return theta * n
 
 
-def rot_with_rvec(v: np.ndarray, rvec: np.ndarray) -> np.ndarray:
+def rotate_points_by_rvec(v: np.ndarray, rvec: np.ndarray) -> np.ndarray:
     """回転ベクトルによる点の回転
 
     Args:

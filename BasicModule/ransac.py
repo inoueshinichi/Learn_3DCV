@@ -11,6 +11,10 @@ Reuqirement: [1]最大反復回数, [2]誤差の要求値[閾値], [3]必要イ�
 
 import os
 import sys
+
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
 import math
 import abc
 import random

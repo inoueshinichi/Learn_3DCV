@@ -112,15 +112,15 @@ from scipy import ndimage
 
 import rotation
 import rvec
-import quartanion
+import BasicModule.quartanion as quartanion
 import euler
 
-from geometry_context import GeometryContext
+from BasicModule.geometry_context import GeometryContext
 from euler_state import EulerState
 
 from type_hint import *
 
-from ransac import Ransac, RansacModel
+from BasicModule.ransac import Ransac, RansacModel
 from Homography.homography import homo_squared_errors
 
 

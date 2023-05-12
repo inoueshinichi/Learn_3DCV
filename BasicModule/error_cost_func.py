@@ -10,6 +10,10 @@
 
 import os
 import sys
+
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
 import math
 
 import numpy as np

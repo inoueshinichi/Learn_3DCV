@@ -54,6 +54,11 @@
 
 import os
 import sys
+
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
+
 import math
 import abc
 import inspect
@@ -62,10 +67,10 @@ import numpy as np
 
 from type_hint import *
 
-from rotation import ax_rot, ay_rot, az_rot
+from BasicModule.rotation import ax_rot, ay_rot, az_rot
 
 
-class EulerState(abc.ABCMeta):
+class EulerState(metaclass=abc.ABCMeta):
 
     # 派生クラスへのインターフェースAPIの強制
     @staticmethod
@@ -150,12 +155,12 @@ class EulerInnerXYXState(EulerState):
 
         # ジンバルロックの確認
         # r11=cos(Y)の値で場合分け
-        if math.abs(r11 - 1.0) < self.gimbal_lock:
+        if math.fabs(r11 - 1.0) < self.gimbal_lock:
             # r11 == +1, Y=0
             ax1_rad = math.atan2(r32, r22)
             ay_rad = 0.0
             ax2_rad = 0.0 # Y軸のジンバルロックに従属
-        elif math.abs(r11 + 1.0) < self.gimbal_lock:
+        elif math.fabs(r11 + 1.0) < self.gimbal_lock:
             # r11 == -1, Y=pi
             ax1_rad = math.atan2(r32, r22)
             ay_rad = math.pi
@@ -215,12 +220,12 @@ class EulerInnerXZXState(EulerState):
 
         # ジンバルロックの確認
         # r11=cos(Z)の値で場合分け
-        if math.abs(r11 - 1.0) < self.gimbal_eps:
+        if math.fabs(r11 - 1.0) < self.gimbal_eps:
             # r11 == +1, Z=0
             ax1_rad = math.atan2(r32, r22)
             az_rad = 0.0 
             ax2_rad = 0.0 # Z軸のジンバルロックに従属
-        elif math.abs(r11 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r11 + 1.0) < self.gimbal_eps:
             # r11 == -1, Z=pi
             ax1_rad = math.atan2(r32, r22)
             az_rad = math.pi
@@ -280,12 +285,12 @@ class EulerInnerYXYState(EulerState):
 
         # ジンバルロックの確認
         # r22=cos(X)の値で場合分け
-        if math.abs(r22 - 1.0) < self.gimbal_eps:
+        if math.fabs(r22 - 1.0) < self.gimbal_eps:
             # r22 == +1, X=0
             ay1_rad = math.atan2(r13, r33)
             ax_rad = 0.0
             ay2_rad = 0.0 # X軸のジンバルロックに従属
-        elif math.abs(r22 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r22 + 1.0) < self.gimbal_eps:
             # r22 == -1, X=pi
             ay1_rad = math.atan2(r13, r33)
             ax_rad = math.pi
@@ -346,12 +351,12 @@ class EulerInnerYZYState(EulerState):
 
         # ジンバルロックの確認
         # r22=cos(Z)の値で場合分け
-        if math.abs(r22 - 1.0) < self.gimbal_eps:
+        if math.fabs(r22 - 1.0) < self.gimbal_eps:
             # r22 == +1, Z=0
             ay1_rad = math.atan2(r13, r33)
             az_rad = 0.0
             ay2_rad = 0.0 # Z軸のジンバルロックに従属
-        elif math.abs(r22 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r22 + 1.0) < self.gimbal_eps:
             # r22 == -1, Z=pi
             ay1_rad = math.atan2(r13, r33)
             az_rad = math.pi
@@ -414,12 +419,12 @@ class EulerInnerZXZState(EulerState):
 
         # ジンバルロックの確認
         # r33=cos(X)の値で場合分け
-        if math.abs(r33 - 1.0) < self.gimbal_eps:
+        if math.fabs(r33 - 1.0) < self.gimbal_eps:
             # r33 == +1, X=0
             az1_rad = math.atan2(r22, r11)
             ax_rad = 0.0
             az2_rad = 0.0 # X軸のジンバルロックに従属
-        elif math.abs(r33 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r33 + 1.0) < self.gimbal_eps:
             # r33 == -1, X=pi
             az1_rad = math.atan2(r22, r11)
             ax_rad = math.pi
@@ -482,12 +487,12 @@ class EulerInnerZYZState(EulerState):
 
         # ジンバルロックの確認
         # r33=cos(Y)の値で場合分け
-        if math.abs(r33 - 1.0) < self.gimbal_eps:
+        if math.fabs(r33 - 1.0) < self.gimbal_eps:
             # r33 == +1, Y=0
             az1_rad = math.degrees(math.atan2(r21, r11))
             ay_rad = 0.0
             az2_rad = 0.0 # Y軸のジンバルロックに従属
-        elif math.abs(r33 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r33 + 1.0) < self.gimbal_eps:
             # r33 == -1, Y=pi
             az1_rad = math.degrees(math.atan2(r21, r11))
             ay_rad = math.degrees(math.pi)
@@ -548,12 +553,12 @@ class EulerInnerXYZState(EulerState):
 
         # ジンバルロックの確認
         # r13=sin(Y)の値で場合分け
-        if math.abs(r13 - 1.0) < self.gimbal_eps:
+        if math.fabs(r13 - 1.0) < self.gimbal_eps:
             # r13 == +1, Y=pi/2
             ax_rad = math.atan2(r32, r22)
             ay_rad = math.pi/2
             az_rad = 0.0 # Y軸のジンバルロックに従属
-        elif math.abs(r13 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r13 + 1.0) < self.gimbal_eps:
             # r13 == -1, Y=-pi/2
             ax_rad = math.atan2(r32, r22)
             ay_rad = -math.pi/2
@@ -616,12 +621,12 @@ class EulerInnerXZYState(EulerState):
 
         # ジンバルロックの確認
         # r12=-sin(Z)の値で場合分け
-        if math.abs(r12 - 1.0) < self.gimbal_eps:
+        if math.fabs(r12 - 1.0) < self.gimbal_eps:
             # r12 == +1, Z=-pi/2
             ax_rad = math.atan2(r31, r21)
             az_rad = -math.pi/2
             ay_rad = 0.0 # Z軸のジンバルロックに従属
-        elif math.abs(r12 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r12 + 1.0) < self.gimbal_eps:
             # r12 == -1, Z=pi/2
             ax_rad = math.atan2(r31, r21)
             az_rad = math.pi/2
@@ -684,12 +689,12 @@ class EulerInnerYXZState(EulerState):
 
         # ジンバルロックの確認
         # r23=-sin(X)の値で場合分け
-        if math.abs(r23 - 1.0) < self.gimbal_eps:
+        if math.fabs(r23 - 1.0) < self.gimbal_eps:
             # r23 == +1, X=-pi/2
             ay_rad = math.atan2(r12, r32)
             ax_rad = -math.pi/2
             az_rad = 0.0 # X軸のジンバルロックに従属
-        elif math.abs(r23 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r23 + 1.0) < self.gimbal_eps:
             # r23 == -1, X=pi/2
             ay_rad = math.atan2(r12, r32)
             ax_rad = math.pi/2
@@ -752,12 +757,12 @@ class EulerInnerYZXState(EulerState):
 
         # ジンバルロックの確認
         # r21=sin(Z)の値で場合分け
-        if math.abs(r21 - 1.0) < self.gimbal_eps:
+        if math.fabs(r21 - 1.0) < self.gimbal_eps:
             # r21 == +1, Z=pi/2
             ay_rad = math.atan2(r13, r33)
             az_rad = math.pi/2
             ax_rad = 0.0 # Z軸のジンバルロックに従属
-        elif math.abs(r21 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r21 + 1.0) < self.gimbal_eps:
             # r21 == -1, Z=-pi/2
             ay_rad = math.atan2(r13, r33)
             az_rad = -math.pi_2
@@ -819,12 +824,12 @@ class EulerInnerZXYState(EulerState):
 
         # ジンバルロックの確認
         # r32=sin(X)の値をチェックして場合分け
-        if math.abs(r32 - 1.0) < self.gimbal_eps: 
+        if math.fabs(r32 - 1.0) < self.gimbal_eps: 
             # r32 == +1, X=pi/2
             az_rad = math.atan2(r21, r11)
             ax_rad = math.pi/2
             ay_rad = 0.0 # X軸のジンバルロックに従属
-        elif math.abs(r32 + 1.0) < self.gimbal_eps: 
+        elif math.fabs(r32 + 1.0) < self.gimbal_eps: 
             # r32 == -1, X=-pi/2
             az_rad = math.atan2(r21, r11)
             ax_rad = -math.pi/2
@@ -886,12 +891,12 @@ class EulerInnerZYXState(EulerState):
 
         # ジンバルロックの確認
         # r31=-sin(Y)の値をチェックして場合分け
-        if math.abs(r31 - 1.0) < self.gimbal_eps: 
+        if math.fabs(r31 - 1.0) < self.gimbal_eps: 
             # r31 == +1, Y=-pi/2
             az_rad = math.atan2(r23, r13)
             ay_rad = -math.pi/2
             ax_rad = 0.0 # Y軸回りのジンバルロックに従属
-        elif math.abs(r31 + 1.0) < self.gimbal_eps: 
+        elif math.fabs(r31 + 1.0) < self.gimbal_eps: 
             # r31 == -1, Y=pi/2
             az_rad = math.atan2(r23, r13)
             ay_rad = math.pi/2
@@ -955,12 +960,12 @@ class EulerOuterXYXState(EulerState):
 
         # ジンバルロックの確認
         # r11=cos(Y)の値で場合分け
-        if math.abs(r11 - 1.0) < self.gimbal_lock:
+        if math.fabs(r11 - 1.0) < self.gimbal_lock:
             # r11 == +1, Y=0
             ax1_rad = math.atan2(r32, r22)
             ay_rad = 0.0
             ax2_rad = 0.0 # Y軸のジンバルロックに従属
-        elif math.abs(r11 + 1.0) < self.gimbal_lock:
+        elif math.fabs(r11 + 1.0) < self.gimbal_lock:
             # r11 == -1, Y=pi
             ax1_rad = math.atan2(-r32, r22)
             ay_rad = math.pi
@@ -1020,12 +1025,12 @@ class EulerOuterXZXState(EulerState):
 
         # ジンバルロックの確認
         # r11=cos(Z)の値で場合分け
-        if math.abs(r11 - 1.0) < self.gimbal_eps:
+        if math.fabs(r11 - 1.0) < self.gimbal_eps:
             # r11 == +1, Z=0
             ax1_rad = math.atan2(r32, r22)
             az_rad = 0.0 
             ax2_rad = 0.0 # Z軸のジンバルロックに従属
-        elif math.abs(r11 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r11 + 1.0) < self.gimbal_eps:
             # r11 == -1, Z=pi
             ax1_rad = math.atan2(r32, -r22)
             az_rad = math.pi
@@ -1086,12 +1091,12 @@ class EulerOuterYXYState(EulerState):
 
         # ジンバルロックの確認
         # r22=cos(X)の値で場合分け
-        if math.abs(r22 - 1.0) < self.gimbal_eps:
+        if math.fabs(r22 - 1.0) < self.gimbal_eps:
             # r22 == +1, X=0
             ay1_rad = math.atan2(r13, r33)
             ax_rad = 0.0
             ay2_rad = 0.0 # X軸のジンバルロックに従属
-        elif math.abs(r22 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r22 + 1.0) < self.gimbal_eps:
             ay1_rad = math.atan2(r13, -r33)
             ax_rad = math.pi
             ay2_rad = 0.0 # X軸のジンバルロックに従属
@@ -1150,12 +1155,12 @@ class EulerOuterYZYState(EulerState):
 
         # ジンバルロックの確認
         # r22=cos(Z)の値で場合分け
-        if math.abs(r22 - 1.0) < self.gimbal_eps:
+        if math.fabs(r22 - 1.0) < self.gimbal_eps:
             # r22 == +1, Z=0
             ay1_rad = math.atan2(r13, r33)
             az_rad = 0.0
             ay2_rad = 0.0 # Z軸のジンバルロックに従属
-        elif math.abs(r22 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r22 + 1.0) < self.gimbal_eps:
             # r22 == -1, Z=pi
             ay1_rad = math.atan2(-r13, r33)
             az_rad = math.pi
@@ -1216,12 +1221,12 @@ class EulerOuterZXZState(EulerState):
 
         # ジンバルロックの確認
         # r33=cos(X)の値で場合分け
-        if math.abs(r33 - 1.0) < self.gimbal_eps:
+        if math.fabs(r33 - 1.0) < self.gimbal_eps:
             # r33 == +1, X=0
             az1_rad = math.atan2(r22, r11)
             ax_rad = 0.0
             az2_rad = 0.0 # X軸のジンバルロックに従属
-        elif math.abs(r33 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r33 + 1.0) < self.gimbal_eps:
             # r33 == -1, X=pi
             az1_rad = math.atan2(-r22, r11)
             ax_rad = math.pi
@@ -1282,12 +1287,12 @@ class EulerOuterZYZState(EulerState):
 
         # ジンバルロックの確認
         # r33=cos(Y)の値で場合分け
-        if math.abs(r33 - 1.0) < self.gimbal_eps:
+        if math.fabs(r33 - 1.0) < self.gimbal_eps:
             # r33 == +1, Y=0
             az1_rad = math.atan2(r21, r11)
             ay_rad = 0.0
             az2_rad = 0.0 # Y軸のジンバルロックに従属
-        elif math.abs(r33 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r33 + 1.0) < self.gimbal_eps:
             # r33 == -1, Y=pi
             az1_rad = math.atan2(r21, -r11)
             ay_rad = math.pi
@@ -1348,12 +1353,12 @@ class EulerOuterXYZState(EulerState):
 
         # ジンバルロックの確認
         # r31=-sin(Y)の値で場合分け
-        if math.abs(r31 - 1.0) < self.gimbal_eps:
+        if math.fabs(r31 - 1.0) < self.gimbal_eps:
             # r31 == +1, Y=-pi/2
             ax_rad = math.atan2(r21, r11)
             ay_rad = -math.pi/2
             az_rad = 0.0 # Y軸のジンバルロックに従属
-        elif math.abs(r31 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r31 + 1.0) < self.gimbal_eps:
             # r31 == -1, Y=pi/2
             ax_rad = math.atan2(r21, r11)
             ay_rad = math.pi/2
@@ -1415,12 +1420,12 @@ class EulerOuterXZYState(EulerState):
 
         # ジンバルロックの確認
         # r21=sin(Z)の値で場合分け
-        if math.abs(r21 - 1.0) < self.gimbal_eps:
+        if math.fabs(r21 - 1.0) < self.gimbal_eps:
             # r21 == +1, Z=pi/2
             ax_rad = math.atan2(r11, r33)
             az_rad = math.pi/2
             ay_rad = 0.0 # Z軸のジンバルロックに従属
-        elif math.abs(r21 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r21 + 1.0) < self.gimbal_eps:
             # r21 == -1, Y=-pi/2
             ax_rad = math.atan2(-r11, r33)
             az_rad = -math.pi/2
@@ -1481,12 +1486,12 @@ class EulerOuterYXZState(EulerState):
 
         # ジンバルロックの確認
         # r32=sin(X)の値で場合分け
-        if math.abs(r32 - 1.0) < self.gimbal_eps:
+        if math.fabs(r32 - 1.0) < self.gimbal_eps:
             # r32 == +1, X=pi/2
             ay_rad = math.atan2(r21, r11)
             ax_rad = math.pi/2
             az_rad = 0.0 # X軸のジンバルロックに従属
-        elif math.abs(r32 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r32 + 1.0) < self.gimbal_eps:
             # r32 == -1, Y=-pi/2
             ay_rad = math.atan2(-r21, r11)
             ax_rad = -math.pi/2
@@ -1547,12 +1552,12 @@ class EulerOuterYZXState(EulerState):
 
         # ジンバルロックの確認
         # r12=-sin(Z)の値で場合分け
-        if math.abs(r12 - 1.0) < self.gimbal_eps:
+        if math.fabs(r12 - 1.0) < self.gimbal_eps:
             # r12 == +1, Z=-pi/2
             ay_rad = math.atan2(-r31, r21)
             az_rad = -math.pi/2
             ax_rad = 0.0 # Z軸のジンバルロックに従属
-        elif math.abs(r12 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r12 + 1.0) < self.gimbal_eps:
             # r12 == -1, Z=pi/2
             ay_rad = math.atan2(r31, r21)
             az_rad = math.pi/2
@@ -1614,12 +1619,12 @@ class EulerOuterZXYState(EulerState):
 
         # ジンバルロックの確認
         # r23=-sin(X)の値で場合分け
-        if math.abs(r23 - 1.0) < self.gimbal_eps:
+        if math.fabs(r23 - 1.0) < self.gimbal_eps:
             # r23 == +1, X=-pi/2
             az_rad = math.atan2(r12, r32)
             ax_rad = -math.pi/2
             ay_rad = 0.0 # X軸のジンバルロックに従属
-        elif math.abs(r23 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r23 + 1.0) < self.gimbal_eps:
             # r23 == -1, X=pi/2
             az_rad = math.atan2(-r12, r32)
             ax_rad = math.pi/2
@@ -1680,12 +1685,12 @@ class EulerOuterZYXState(EulerState):
 
         # ジンバルロックの確認
         # r13=sin(Y)の値で場合分け
-        if math.abs(r13 - 1.0) < self.gimbal_eps:
+        if math.fabs(r13 - 1.0) < self.gimbal_eps:
             # r13 == +1, Y=pi/2
             az_rad = math.atan2(r32, r22)
             ay_rad = math.pi/2
             ax_rad = 0.0 # Y軸のジンバルロックに従属
-        elif math.abs(r13 + 1.0) < self.gimbal_eps:
+        elif math.fabs(r13 + 1.0) < self.gimbal_eps:
             # r13 == -1, Y=-pi/2
             az_rad = math.atan2(-r32, r22)
             ay_rad = -math.pi/2

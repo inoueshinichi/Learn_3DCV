@@ -1,25 +1,29 @@
 """3Dジオメトリのコンテキスト
 
 Default:
-    右手座標系 Zup ・・・ OpenCV/Blender系統
+    (1) 座標系定義:
+        右手座標系 Zup ・・・ OpenCV/Blender系統
 
-    z  
-    |
-    /---y
-   x
+         z  
+         |
+         /---y
+        x
 
-    オイラー角:
-    内因性 ZXY
+    (2) オイラー角:
+        内因性 ZXY
 """
 
 import os
 import sys
 
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
 import numpy as np
 
 from type_hint import *
 
-from coordinate_state import (
+from BasicModule.coordinate_state import (
     CoordinateState,
     CoorRightYupXforwardState, # OpenGL系
     CoorRightZupYforwardState, # OpenCV系
@@ -27,7 +31,7 @@ from coordinate_state import (
     CoorLeftZupXforwardState,  # UnrealEngine系
 )
 
-from euler_state import (
+from BasicModule.euler_state import (
     EulerState,
     EulerInnerXYXState,
     EulerInnerXZXState,

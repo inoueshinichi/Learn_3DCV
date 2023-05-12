@@ -1,3 +1,4 @@
 .vscode/
 PantherOrigami/
 data/
+*/__pycache__/

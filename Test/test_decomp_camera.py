@@ -8,7 +8,7 @@ np.set_printoptions(suppress=True) # 指数表記禁止
 from rvec import make_rvec, rvec_to_rot
 from rotation import ax_rot, ay_rot, az_rot
 from euler import rot_to_euler
-from geometry_context import GeometryContext
+from BasicModule.geometry_context import GeometryContext
 
 
 # 座標系の軸反転なし(鏡映状態でない)

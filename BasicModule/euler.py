@@ -2,13 +2,17 @@
 """
 import os
 import sys
+
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
 import math
 
 import numpy as np
 
 from type_hint import *
 
-from euler_state import EulerState
+from BasicModule.euler_state import EulerState
 
 def euler_to_rot(theta1_deg: float, 
                  theta2_deg: float, 
@@ -25,8 +29,11 @@ def euler_to_rot(theta1_deg: float,
     Returns:
         np.ndarray: 回転行列[3x3]
     """
+    theta1_rad = math.radians(theta1_deg)
+    theta2_rad = math.radians(theta2_deg)
+    theta3_rad = math.radians(theta3_deg)
 
-    return euler_state.to_rot(theta1_deg, theta2_deg, theta3_deg)
+    return euler_state.to_rot(theta1_rad, theta2_rad, theta3_rad)
 
 
 def rot_to_euler(rot: np.ndarray,
@@ -40,5 +47,10 @@ def rot_to_euler(rot: np.ndarray,
     Returns:
         Tuple[float, float, float]: オイラー角(θ1,θ2,θ3)
     """
-    return euler_state.from_rot(rot)
+    theta1_rad, theta2_rad, theta3_rad = euler_state.from_rot(rot)
+    theta1_deg = math.degrees(theta1_rad)
+    theta2_deg = math.degrees(theta2_rad)
+    theta3_deg = math.degrees(theta3_rad)
+
+    return theta1_deg, theta2_deg, theta3_deg
 
