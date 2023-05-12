@@ -17,7 +17,7 @@ np.set_printoptions(suppress=True) # 指数表記禁止
 
 from BasicModule.quartanion import quat, dot_quat
 from BasicModule.rvec import rvec, rvec_to_rot, rotate_points_by_rvec, rvec_to_quat
-from BasicModule.rotation import ax_rot, ay_rot, az_rot
+from BasicModule.rotation import ax_rot, ay_rot, az_rot, rot_to_quat, rot_to_rvec
 from BasicModule.euler import rot_to_euler, euler_to_rot
 from BasicModule.geometry_context import GeometryContext
 
@@ -50,8 +50,39 @@ def test_rot_euler():
     print(f"theta2_deg: {theta2_deg}, euler2_deg: {euler2_deg}")
     print(f"theta3_deg: {theta3_deg}, euler3_deg: {euler3_deg}")
 
+@test_decorator
+def test_euler_rot_quat():
+    """オイラー角指定による回転要素(クォータニオン)の更新と逆更新
+    """
 
+    geo_ctx = GeometryContext()
+
+    # 状態としてのオイラー角
+    state_theta1_deg = 30
+    state_theta2_deg = 45
+    state_theta3_deg = 60
+
+    # 回転行列に変換
+    state_rot = euler_to_rot(theta1_deg=state_theta1_deg,
+                             theta2_deg=state_theta2_deg,
+                             theta3_deg=state_theta3_deg,
+                             euler_state=geo_ctx.euler_state)
     
+    # クォータニオン
+    state_quat = rot_to
+    
+    # 更新としてのオイラー角
+    diff_theta1_deg = 45
+    diff_theta2_deg = 45
+    diff_theta3_deg = 45
+
+    # 回転行列に変換
+    diff_rot = euler_to_rot(theta1_deg=diff_theta1_deg,
+                            theta2_deg=diff_theta2_deg,
+                            theta3_deg=diff_theta3_deg,
+                            euler_state=geo_ctx.euler_state)
+    
+
 
 
 def test_replace_rot():
