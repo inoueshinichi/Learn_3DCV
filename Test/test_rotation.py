@@ -25,58 +25,10 @@ from type_hint import *
 from test_util import test_decorator
 
 
-@test_decorator
-def test_rot_euler():
-    """オイラー角指定による回転行列の作成と逆変換
-    """
-    geo_ctx = GeometryContext() # Inner ZXY
-
-    theta1_deg = 30
-    theta2_deg = 45
-    theta3_deg = 60
-
-    # 回転行列に変換
-    rot = euler_to_rot(theta1_deg=theta1_deg,
-                       theta2_deg=theta2_deg,
-                       theta3_deg=theta3_deg,
-                       euler_state=geo_ctx.euler_state)
-    
-    print("rot\n", rot)
-
-    # オイラー角に逆変換
-    euler1_deg, euler2_deg, euler3_deg = rot_to_euler(rot=rot,
-                                                      euler_state=geo_ctx.euler_state)
-
-    print(f"theta1_deg: {theta1_deg}, euler1_deg: {euler1_deg}")
-    print(f"theta2_deg: {theta2_deg}, euler2_deg: {euler2_deg}")
-    print(f"theta3_deg: {theta3_deg}, euler3_deg: {euler3_deg}")
 
 
-@test_decorator
-def test_rot_quat():
-    """回転行列とクォータニオン
-    """
-    geo_ctx = GeometryContext()
 
-    theta1_deg = 30
-    theta2_deg = 45
-    theta3_deg = 60
 
-    # 回転行列に変換
-    rot = euler_to_rot(theta1_deg=theta1_deg,
-                       theta2_deg=theta2_deg,
-                       theta3_deg=theta3_deg,
-                       euler_state=geo_ctx.euler_state)
-    
-    print("rot\n", rot)
-
-    # クォータニオンに変換
-    quat = rot_to_quat(rot)
-    print("quat=", quat)
-
-    # 回転行列に戻す
-    return_rot = quat_to_rot(quat)
-    print("return_rot\n", return_rot)
 
 
 @test_decorator

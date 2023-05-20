@@ -429,7 +429,7 @@ def quat_to_target(target: np.ndarray,
     n = np.cross(forward, pt) # クロス積 (forwardとptに垂直方向)
 
     # クォータニオンを作成
-    q = make_quat(n, theta)
+    q = quat(n, theta)
 
     # qでstate_quatを更新
     new_quat = update_quat(state_quat, q)

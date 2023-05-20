@@ -144,6 +144,7 @@ def dt_rot(rot: np.ndarray, omega: np.ndarray) -> np.ndarray:
     return tilde_omega @ rot
 
 
+# バグがある.
 def rot_to_rvec(rot: np.ndarray) -> np.ndarray:
     """回転行列から回転ベクトルを求める
 
@@ -158,7 +159,7 @@ def rot_to_rvec(rot: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: 回転ベクトル[3x1]
     """
-    if rot.shape() != (3,3):
+    if rot.shape != (3,3):
         raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
     
     A = 0.5 * (rot - rot.T)
@@ -214,7 +215,7 @@ def rot_to_rvec(rot: np.ndarray) -> np.ndarray:
         # 方向ベクトル
         n = l / s
         # 回転量
-        theta = math.arctan2(s, c)
+        theta = math.atan2(s, c)
         # 回転ベクトル
         rvec = theta * n
 

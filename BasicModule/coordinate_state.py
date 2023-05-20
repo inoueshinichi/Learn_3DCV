@@ -56,7 +56,7 @@ class CoordinateState(metaclass=abc.ABCMeta):
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
     
     @abc.abstractclassmethod
-    def quat_to_rot(self, qw : float, qx : float, qy : float qz) -> np.ndarray:
+    def quat_to_rot(self, qw : float, qx : float, qy : float, qz : float) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
@@ -252,7 +252,7 @@ class CoorRightZupYforwardState(CoordinateState):
     
 
     @CoordinateState.overrides(CoordinateState)
-    def quat_to_rot(qw : float, qx : float, qy : float qz) -> np.ndarray:
+    def quat_to_rot(qw : float, qx : float, qy : float, qz : float) -> np.ndarray:
         """クォータニオンから回転行列に変換
 
         右手系クォータニオン
@@ -391,7 +391,7 @@ class CoorLeftYupZforwardState(CoordinateState):
         return V
     
     @CoordinateState.overrides(CoordinateState)
-    def quat_to_rot(qw : float, qx : float, qy : float qz) -> np.ndarray:
+    def quat_to_rot(qw : float, qx : float, qy : float, qz : float) -> np.ndarray:
         """クォータニオンから回転行列に変換
 
         左手クォータニオン
