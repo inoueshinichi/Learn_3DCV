@@ -67,7 +67,7 @@ import numpy as np
 
 from type_hint import *
 
-from BasicModule.naive_rotation import ax_rot, ay_rot, az_rot
+from BasicModule.utility import ax_rot, ay_rot, az_rot
 from BasicModule.utility import near_equal, near_zero
 
 

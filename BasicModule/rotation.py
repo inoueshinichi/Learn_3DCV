@@ -13,7 +13,7 @@ import numpy as np
 
 from BasicModule.euler_state import EulerState
 
-from BasicModule.naive_rotation import ax_rot, ay_rot, az_rot
+from BasicModule.utility import ax_rot, ay_rot, az_rot
 
 from type_hint import *
 

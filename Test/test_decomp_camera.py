@@ -1,15 +1,19 @@
 
+import os
+import sys
+
+module_parent_dir = '/'.join([os.path.dirname(__file__), '..'])
+sys.path.append(module_parent_dir)
+
 import math
+import inspect
+
 import numpy as np
 import scipy as sp
 
 np.set_printoptions(suppress=True) # 指数表記禁止
 
-from rvec import make_rvec, rvec_to_rot
-from rotation import ax_rot, ay_rot, az_rot
-from euler import rot_to_euler
-from BasicModule.geometry_context import GeometryContext
-
+from BasicModule.utility import ax_rot, ay_rot, az_rot
 
 # 座標系の軸反転なし(鏡映状態でない)
 def test1_decomp_camera():
@@ -372,8 +376,6 @@ if __name__ == "__main__":
     # test3_decomp_camera() # det(T)=+1, det(dR)=+1 -> OK
     # test4_decomp_camera() # y軸反転, -fy -> OK
     # test5_decomp_camera() # det(R)=-1 ?
-    # test6_decomp_camera() # det(T)=+1, det(dR)=+1 -> OK
+    test6_decomp_camera() # det(T)=+1, det(dR)=+1 -> OK
 
-    # 回転行列の性質に関するテスト
-    test_neg2_rot()
 
