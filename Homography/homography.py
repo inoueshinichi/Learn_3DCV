@@ -92,14 +92,6 @@ import math
 
 import numpy as np
 
-import rotation
-import rvec
-import BasicModule.quartanion as quartanion
-import euler
-
-from BasicModule.geometry_context import GeometryContext
-from euler_state import EulerState
-
 from type_hint import *
 
 from BasicModule.ransac import Ransac, RansacModel

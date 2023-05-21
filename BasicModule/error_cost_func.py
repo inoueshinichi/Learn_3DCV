@@ -1,10 +1,16 @@
-"""損失関数(誤差)
+"""誤差 & 損失
 
-1. L1ノルム誤差
-2. L2ノルム誤差
-3. サンプソン距離誤差
-4. 平均二乗誤差
-5. マハラノビス距離
+# 誤差
+1. 絶対値誤差(L1ノルム)
+2. 二乗誤差(L2ノルム)
+3. 平均二乗誤差(MES)
+4. 二乗平均平方根誤差(RMSE)
+5. サンプソン誤差(距離)
+6. マハラノビス誤差(距離)
+
+# 損失
+1. L1損失
+2. L2損失
 
 """
 
@@ -19,6 +25,7 @@ import math
 import numpy as np
 
 from type_hint import *
+
 
 def aboslute_errors(x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
     """絶対誤差|x1-x2|
@@ -39,6 +46,7 @@ def aboslute_errors(x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
     errors = math.abs(x1 - x2) # [DxN]
 
     return errors
+
 
 def l1_loss(x1: np.ndarray, x2: np.ndarray) -> float:
     """L1損失 mean(sum(|x1-x2|))
@@ -78,6 +86,7 @@ def squared_errors(x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
 
     return errors
 
+
 def mean_squared_error(x1: np.ndarray, x2: np.ndarray) -> float:
     """平均二乗誤差(MSE: Mean Squared Error)
     mean(sum((x1-x2)^2))
@@ -95,6 +104,7 @@ def mean_squared_error(x1: np.ndarray, x2: np.ndarray) -> float:
     distance = np.sum(errors, axis=0) # [1xN]
     mse = np.mean(distance)
     return mse
+
 
 def root_mean_squared_error(x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
     """二乗平均平方根誤差(RMSE: Root Mean Squared Error)
@@ -126,4 +136,25 @@ def l2_loss(x1: np.ndarray, x2: np.ndarray) -> float:
     distance = 0.5 * np.sum(errors, axis=0) # [1xN]
     l2_loss = np.mean(distance)
     return l2_loss
+
+
+def sampson_errors(x1: np.ndarray, x2: np.ndarray, F: np.ndarray) -> np.ndarray:
+    """サンプソン誤差
+    Sampson = diag(x1j^2 @ F @ x2j)^2 / (Fx1j[0])^2 + (Fx1j[1])^2 + (Fx2j[0])^2 + (Fx2j[1])^2
+
+    Args:
+        x1 (np.ndarray): 画像1上の点群 [3xN]
+        x2 (np.ndarray): 画像2上の点群 [3xN]
+        F (np.ndarray): 基礎行列F [3x3]
+
+    Returns:
+        np.ndarray: 各点のサンプソン誤差の配列[1xN]
+    """
+    Fx1 = F @ x1 # [3xN]
+    Fx2 = F @ x2 # [3xN]
+    denominators = Fx1[0]**2 + Fx1[1]**2 + Fx2[0]**2 + Fx2[1]**2
+    numerators = (np.diag(x1.T @ F @ x2))**2
+
+    errors = numerators / denominators # [1xN]
+    return errors
 

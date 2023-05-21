@@ -25,8 +25,8 @@ import numpy as np
 
 from type_hint import *
 
-from BasicModule.lerp import lerp
-from BasicModule.geometry_context import GeometryContext
+from BasicModule.utility import lerp
+from BasicModule.euler_state import EulerState
 
 
 def quat(n: np.ndarray, theta: float) -> np.ndarray:
@@ -171,6 +171,7 @@ def normalize_quat(q: np.ndarray) -> np.ndarray:
     
     return q / norm_quat(q)
 
+
 def iden_quat() -> np.ndarray:
     """単位元クォータニオン
 
@@ -221,8 +222,8 @@ def cat_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
         q (np.ndarray): クォータニオン(qx, qy, qz, qw) = [q_v, q_s]
 
     グラスマン積
-    (q*p)_v = q_s*p_v + p_s*q_v + cross(q_v,p_v)
-    (q*p)_s = q_s*p_s - dot(q_v,p_v)
+    (q*p)_v = q_w*p_v + p_w*q_v + cross(q_v,p_v)
+    (q*p)_s = q_w*p_w - dot(q_v,p_v)
 
     q*p = [
         qx*pw+qw*px-qz*py+qy*pz, # (q*p)_vx
@@ -234,29 +235,35 @@ def cat_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: クォータニオン[4x1]
     """
-    px, py, pz, pw = p[0], p[1], p[2], p[3]
-    qx, qy, qz, qw = q[0], q[1], q[2], q[3]
-
-    # グラスマン積
-    qp_x = qx*pw+qw*px-qz*py+qy*pz
-    qp_y = qy*pw+qz*px+qw*py-qx*pz
-    qp_z = qz*pw-qy*px+qx*py+qw*pz
-    qp_w = qw*pw-qx*px-qy*py-qz*pz
-    qp = np.array([qp_x, qp_y, qp_z, qp_w], dtype=np.float32)
     
-    # 連結したクォータニオンが単位クォータニオンであるとは限らない
-    return normalize_quat(qp)
+    # px, py, pz, pw = p[0], p[1], p[2], p[3]
+    # qx, qy, qz, qw = q[0], q[1], q[2], q[3]
+    # qp_x = qw*px + pw*qx + (py*qz - pz*qy)
+    # qp_y = qw*py + pw*qy + (pz*qx - px*qz)
+    # qp_z = qw*pz + pw*qz + (px*qy - py*qx)
+    # qp_w = qw*pw - (qx*px + qy*py + qz*pz)
+    # qp = np.array([qp_x, qp_y, qp_z, qp_w], dtype=np.float32)
+
+    qp = np.array([0,0,0,0], dtype=np.float32)
+    # vector:  qw * pv + pw * qv + qv x pv
+    qp[:3] = q[3] * p[:3] + p[3] * q[:3] + np.cross(q[:3],p[:3])
+
+    # scalar:  qw * pw - qv ・ pv
+    qp[3] = q[3]*p[3] - np.dot(q[:3],p[:3])
+
+    return qp
+    
 
 
 def update_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
-    """クォータニオンpをqで更新
+    """クォータニオンpをクォータニオンqで更新
 
     Args:
-        p (np.ndarray): クォータニオン(px, py, pz, pw)
-        q (np.ndarray): クォータニオン(qx, qy, qz, qw)
+        p (np.ndarray): クォータニオン[4x1]
+        q (np.ndarray): クォータニオン[4x1]
 
     Returns:
-        np.ndarray: 更新済みクォータニオン[4x1]
+        np.ndarray: クォータニオン[4x1]
     """
     if p.shape[0] != 4:
         raise ValueError(f"Not match shape (4,1) or (4,). Given is {p.shape}")
@@ -270,10 +277,10 @@ def update_quat(p: np.ndarray, q: np.ndarray) -> np.ndarray:
     if norm_quat(q) != 1.0:
         raise ValueError(f"Not match norm 1.0. Given is {norm_quat(q)}")
     
-    q_inv = inv_quat(q) # 逆クォータニオン
-    new_quat = cat_quat(q_inv, cat_quat(p, q))
-    new_quat = normalize_quat(new_quat) # 単位クォータニオン
-    return new_quat
+    qp = cat_quat(p,q)
+
+    # 連結したクォータニオンが単位クォータニオンであるとは限らない
+    return normalize_quat(qp)
 
 
 def rotate_points_by_quat(v: np.ndarray, q: np.ndarray) -> np.ndarray:
@@ -394,44 +401,23 @@ def quat_to_rvec(q: np.ndarray) -> np.ndarray:
 
     return theta * np.array([nx, ny, nz], dtype=np.float32)
 
-def quat_to_target(target: np.ndarray, 
-                  pos: np.ndarray, 
-                  state_quat: np.ndarray,
-                  geometry_context: GeometryContext) -> np.ndarray:
-    """ターゲットの方向にオブジェクトのローカル座標系の前方を向ける(回転)
+
+def quat_to_euler(quat: np.ndarray, euler_state: EulerState) -> Tuple[float, float, float]:
+    """クォータニオンからオイラー角に変換する
 
     Args:
-        target (np.ndarray): ターゲットの位置ベクトル[3x1]
-        pos (np.ndarray): ローカル座標系の位置[3x1]
-        quat (np.ndarray): ローカル座標系のクォータニオン(姿勢)[4x1]
-        geometry_context (GeometryContext): 幾何定義
+        quat (np.ndarray): クォータニオン[4x1] (qx,qy,qz,qw)
+        euler_state (EulerState): オイラー角の定義
 
     Returns:
-        np.ndarray: ローカル座標系のクォータニオン(姿勢)[4x1]
+        Tuple[float, float, float]: オイラー角 (θ1,θ2,θ3)
     """
+    # クォータニオン -> 回転行列
+    rot = quat_to_rot(quat)
 
-    if target.shape != (3,1) or pos.shape != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is target's shape: {target.shape}, pos's shape: {pos.shape}")
-    
-    # ターゲット視線ベクトル
-    pt = target - pos
-    pt /= np.linalg.norm(pt) # [3x1]
+    theta1_rad, theta2_rad, theta3_rad = euler_state.from_rot(rot)
+    theta1_deg = math.degrees(theta1_rad)
+    theta2_deg = math.degrees(theta2_rad)
+    theta3_deg = math.degrees(theta3_rad)
 
-    # ローカル座標系の前方ベクトル
-    rot = quat_to_rot(state_quat)
-    forward = geometry_context.forward_axis(rot) # [3x1]
-
-    # 角度θを求める
-    cos_theta = np.dot(pt,forward)
-    theta = math.acos(cos_theta)
-
-    # 方向ベクトルを求める
-    n = np.cross(forward, pt) # クロス積 (forwardとptに垂直方向)
-
-    # クォータニオンを作成
-    q = quat(n, theta)
-
-    # qでstate_quatを更新
-    new_quat = update_quat(state_quat, q)
-
-    return new_quat
+    return theta1_deg, theta2_deg, theta3_deg

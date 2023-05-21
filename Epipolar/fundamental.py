@@ -49,37 +49,10 @@ import math
 
 import numpy as np
 
-import rotation
-import rvec
-import BasicModule.quartanion as quartanion
-import euler
-
-from BasicModule.geometry_context import GeometryContext
-from euler_state import EulerState
-
 from type_hint import *
 
 from BasicModule.ransac import Ransac, RansacModel
-
-def sampson_error(x1: np.ndarray, x2: np.ndarray, F: np.ndarray) -> np.ndarray:
-    """サンプソン誤差
-    Sampson = diag(x1j^2 @ F @ x2j)^2 / (Fx1j[0])^2 + (Fx1j[1])^2 + (Fx2j[0])^2 + (Fx2j[1])^2
-
-    Args:
-        x1 (np.ndarray): 画像1上の点群 [3xN]
-        x2 (np.ndarray): 画像2上の点群 [3xN]
-        F (np.ndarray): 基礎行列F [3x3]
-
-    Returns:
-        np.ndarray: 各点のサンプソン誤差の配列[1xN]
-    """
-    Fx1 = F @ x1 # [3xN]
-    Fx2 = F @ x2 # [3xN]
-    denominators = Fx1[0]**2 + Fx1[1]**2 + Fx2[0]**2 + Fx2[1]**2
-    numerators = (np.diag(x1.T @ F @ x2))**2
-
-    errors = numerators / denominators # [1xN]
-    return errors
+from BasicModule.error_cost_func import sampson_errors
 
 
 def find_fundamental(img1_pts: np.ndarray, img2_pts: np.ndarray) -> np.ndarray:
@@ -186,7 +159,7 @@ class RansacFundamentalModel(RansacModel):
         x2 = data[3:,:] # [3xN]
 
         # サンプソン誤差
-        return sampson_error(x1, x2, estimated_model)
+        return sampson_errors(x1, x2, estimated_model)
 
 
 def find_fundamental_with_ransac(img1_pts: np.ndarray, 

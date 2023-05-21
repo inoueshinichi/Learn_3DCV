@@ -13,6 +13,8 @@ import math
 
 import numpy as np
 
+from BasicModule.euler_state import EulerState
+
 from type_hint import *
 
 
@@ -64,7 +66,7 @@ def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
         s(θ) = sin(θ)
         [[nx*nx{1-c(θ)}+c(θ), nx*ny{1-c(θ)}-nz*s(θ), nx*nz{1-c(θ)}+ny*s(θ)],
          [ny*nx{1-c(θ)}+nz*s(θ), ny*ny{1-c(θ)}+c(θ), ny*nz{1-c(θ)}-nx*s(θ)],
-         [nz*nx{1-c(θ)}+ny*s(θ), nz*ny{1-c(θ)}+nx*s(θ), nz*nz{1-c(θ)}+c(θ)]]
+         [nz*nx{1-c(θ)}-ny*s(θ), nz*ny{1-c(θ)}+nx*s(θ), nz*nz{1-c(θ)}+c(θ)]]
 
         単位行列[3x3] I
         直交行列?[3x3] nn = n*n.T
@@ -91,7 +93,7 @@ def rvec_to_rot(rvec: np.ndarray) -> np.ndarray:
     rot[1,0] = ny * nx * (1 - c) + nz * s
     rot[1,1] = ny * ny * (1 - c) + c
     rot[1,2] = ny * nz * (1 - c) - nx * s
-    rot[2,0] = nz * nx * (1 - c) + ny * s
+    rot[2,0] = nz * nx * (1 - c) - ny * s
     rot[2,1] = nz * ny * (1 - c) + nx * s
     rot[2,2] = nz * nz * (1 - c) + c
     
@@ -119,5 +121,26 @@ def rvec_to_quat(rvec: np.ndarray) -> np.ndarray:
     qw = c2
 
     return np.array([qx, qy, qz, qw], dtype=np.float32)
+
+
+def rvec_to_euler(rvec: np.ndarray, euler_state: EulerState) -> Tuple[float, float, float]:
+    """回転ベクトルからオイラー角に変換する
+
+    Args:
+        rvec (np.ndarray): 回転ベクトル[3x1] (vx,vy,vz)
+        euler_state (EulerState): オイラー角の定義
+
+    Returns:
+        Tuple[float, float, float]: オイラー角 (θ1,θ2,θ3)
+    """
+    # 回転ベクトル -> 回転行列
+    rot = rvec_to_rot(rvec)
+
+    theta1_rad, theta2_rad, theta3_rad = euler_state.from_rot(rot)
+    theta1_deg = math.degrees(theta1_rad)
+    theta2_deg = math.degrees(theta2_rad)
+    theta3_deg = math.degrees(theta3_rad)
+
+    return theta1_deg, theta2_deg, theta3_deg
 
 

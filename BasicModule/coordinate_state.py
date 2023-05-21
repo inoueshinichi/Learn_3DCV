@@ -11,19 +11,27 @@ import inspect
 
 import numpy as np
 
+from BasicModule.utility import get_axis_x, get_axis_y, get_axis_z
+
 from type_hint import *
 
-from BasicModule.rotation import axis_x, axis_y, axis_z
-
-
-"""座標系設定の状態
+"""座標系定義
 
   1. 右手系 or 左手系
-  2. Yup or Zup
-  3. Xforward, Yforward or Zforward
-
-  クロス積(外積)は, 右手系と左手系で定義が異なるので注意.
+  2. up, forward, right
+  @note 基本的にrightをX軸正方向にするが, OpenGL系だけX軸負方向になる.
+  @note UE系はforwardがY軸負方向
+  @note 最もしっくり来る座標系定義がRH_PZup_PYforward_PXrightになるOpenCV系, 
+  もしくは, LH_PZup_PYforward_PXrightになるDirectX系. 
+  
+  @warning DirectXは, ベクトルは行ベクトルで, 行優先表現なので, 
+           全ての列優先表現行列を転置して, 行列の積を右側から掛けることになる.
+  
+  @note クロス積(外積)は, 右手系と左手系で定義が異なるが, 数式としては同じ.
   https://yaju3d.hatenablog.jp/entry/2013/05/26/215841
+
+  @warning 回転ベクトルとクォータニオンは右手系と左手系でベクトル成分の符号が異なる.
+           鏡映軸以外の符号を反転させる. 回転量はそのままでよい.
 """
 class CoordinateState(metaclass=abc.ABCMeta):
 
@@ -45,18 +53,13 @@ class CoordinateState(metaclass=abc.ABCMeta):
         self.coor_style: Optional(str) = None
         self.up_axis: Optional(str) = None
         self.forward_axis: Optional(str) = None
+        self.right_axis: Optional(str) = None
 
     @abc.abstractclassmethod
     def look_at(self, 
                target_pos: np.ndarray, 
                camera_pos: np.ndarray, 
                up_axis: Tuple[float, float, float]) -> np.ndarray:
-        func_name = inspect.currentframe().f_code.co_name
-        class_name = self.__class__.__name__
-        raise NotImplementedError(f"No implement {func_name} on {class_name}")
-    
-    @abc.abstractclassmethod
-    def quat_to_rot(self, qw : float, qx : float, qy : float, qz : float) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
@@ -80,14 +83,15 @@ class CoordinateState(metaclass=abc.ABCMeta):
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
 
 
-# 右手座標系 Yup-Xforward (OpenGL, AutoDesk Maya, SolidWorks 系統)
-class CoorRightYupXforwardState(CoordinateState):
+# 右手座標系 PosYup-PosZforward-NegXright (OpenGL, AutoDesk Maya, SolidWorks 系統)
+class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
 
     def __init__(self):
-        super(CoorRightYupXforwardState, self).__init__()
+        super(CoorRH_PYup_PZforward_NXright_State, self).__init__()
         self.coor_style: Optional(str) = "right"
-        self.up_axis: Optional(str) = "y"
-        self.forward_axis: Optional(str) = "x"
+        self.up_axis: Optional(str) = "pos_y"
+        self.forward_axis: Optional(str) = "pos_z"
+        self.right_axis: Optional(str) = "neg_x"
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -156,7 +160,7 @@ class CoorRightYupXforwardState(CoordinateState):
             np.ndarray: 前方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_x(rot) # forward : X軸方向ベクトル
+        return get_axis_z(rot) # forward : Z軸正方向
     
     @CoordinateState.overrides(CoordinateState)
     def right_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -169,7 +173,7 @@ class CoorRightYupXforwardState(CoordinateState):
             np.ndarray: 右方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_z(rot) # right : Z軸方向ベクトル
+        return -1.0 * get_axis_x(rot) # right : X軸負方向
     
     @CoordinateState.overrides(CoordinateState)
     def up_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -182,17 +186,18 @@ class CoorRightYupXforwardState(CoordinateState):
             np.ndarray: 上方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_y(rot) # up : Y軸方向ベクトル
+        return get_axis_y(rot) # up : Y軸正方向
 
         
-# 右手座標系 Zup-Yforward (OpenCV, Blender, AutoCAD 系統)
-class CoorRightZupYforwardState(CoordinateState):
+# 右手座標系 PosZup-PosYforward-PosXright (OpenCV, Blender, AutoCAD 系統)
+class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
 
     def __init__(self):
-        super(CoorRightZupYforwardState, self).__init__()
+        super(CoorRH_PZup_PYforward_PXright_State, self).__init__()
         self.coor_style: Optional(str) = "right"
-        self.up_axis: Optional(str) = "z"
-        self.forward_axis: Optional(str) = "y"
+        self.up_axis: Optional(str) = "pos_z"
+        self.forward_axis: Optional(str) = "pos_y"
+        self.right_axis = "pos_x"
 
 
     @CoordinateState.overrides(CoordinateState)
@@ -250,43 +255,6 @@ class CoorRightZupYforwardState(CoordinateState):
 
         return V
     
-
-    @CoordinateState.overrides(CoordinateState)
-    def quat_to_rot(qw : float, qx : float, qy : float, qz : float) -> np.ndarray:
-        """クォータニオンから回転行列に変換
-
-        右手系クォータニオン
-        rot = 
-        [[1-2*qy^2-2*qz^2, 2*qx*qy-2*qw*qz, 2*qx*qz+2*qw*qy],
-         [2*qx*qy+2*qw*qz, 1-2*qx^2-2*qz^2, 2*qy*qz+-2*qw*qx],
-         [2*qx*qz-2*qw*qy, 2*qy*qz+2*qw*qx, 1-2*qx^2-2*qy^2]]
-
-        Args:
-            rot (np.ndarray): クォータニオン [4x1]
-
-        Returns:
-            np.ndarray: 回転行列
-        """
-
-        # 右手系クォータニオン
-        r11 = 1 - 2 * qy ** 2 - 2 * qz ** 2 # [0,0]
-        r12 = 2 * qx * qy - 2 * qw * qz
-        r13 = 2 * qx * qz + 2 * qw * qy
-        r21 = 2 * qx * qy + 2 * qw * qz
-        r22 = 1 - 2 * qx ** 2 - 2 * qz ** 2 # [1,1]
-        r23 = 2 * qy * qz - 2 * qw * qx
-        r31 = 2 * qx * qz - 2 * qw * qy
-        r32 = 2 * qy * qz + 2 * qw * qx
-        r33 = 1 - 2 * qx ** 2 - 2 * qy ** 2 # [2,2]
-
-        rot = np.array([
-            [r11,r12,r13],
-            [r21,r22,r23],
-            [r31,r32,r33]
-        ], dtype=np.float32)
-
-        return rot
-    
     @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
         """座標系の前方ベクトル(基底:単位ベクトル)を求める
@@ -298,7 +266,7 @@ class CoorRightZupYforwardState(CoordinateState):
             np.ndarray: 前方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_y(rot) # forward : Y軸方向ベクトル
+        return get_axis_y(rot) # forward : Y軸正方向
     
     @CoordinateState.overrides(CoordinateState)
     def right_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -311,7 +279,7 @@ class CoorRightZupYforwardState(CoordinateState):
             np.ndarray: 右方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_x(rot) # right : X軸方向ベクトル
+        return get_axis_x(rot) # right : X軸正方向
     
     @CoordinateState.overrides(CoordinateState)
     def up_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -324,17 +292,18 @@ class CoorRightZupYforwardState(CoordinateState):
             np.ndarray: 上方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_z(rot) # up : Z軸方向ベクトル
+        return get_axis_z(rot) # up : Z軸正方向
 
 
-# 左手座標系 Yup-Zforward (Direct3D, Metal, Unity 系統)
-class CoorLeftYupZforwardState(CoordinateState):
+# 左手座標系 PosYup-PosZforward-PosXright (Direct3D, Metal, Unity 系統)
+class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
 
     def __init__(self):
-        super(CoorLeftYupZforwardState, self).__init__()
+        super(CoorLH_PYup_PZforward_PXright_State, self).__init__()
         self.coor_style: Optional(str) = "left"
-        self.up_axis: Optional(str) = "y"
-        self.forward_axis: Optional(str) = "z"
+        self.up_axis: Optional(str) = "pos_y"
+        self.forward_axis: Optional(str) = "pos_z"
+        self.right_axis: Optional(str) = "pos_x"
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -391,42 +360,6 @@ class CoorLeftYupZforwardState(CoordinateState):
         return V
     
     @CoordinateState.overrides(CoordinateState)
-    def quat_to_rot(qw : float, qx : float, qy : float, qz : float) -> np.ndarray:
-        """クォータニオンから回転行列に変換
-
-        左手クォータニオン
-        rot = 
-        [[1-2*qy^2-2*qz^2, 2*qx*qy-2*qw*qz, 2*qx*qz+2*qw*qy],
-         [2*qx*qy+2*qw*qz, 1-2*qx^2-2*qz^2, 2*qy*qz+-2*qw*qx],
-         [2*qx*qz-2*qw*qy, 2*qy*qz+2*qw*qx, 1-2*qx^2-2*qy^2]]
-
-        Args:
-            rot (np.ndarray): クォータニオン [4x1]
-
-        Returns:
-            np.ndarray: 回転行列
-        """
-
-        # 右手系クォータニオン
-        r11 = 1 - 2 * qy ** 2 - 2 * qz ** 2 # [0,0]
-        r12 = 2 * qx * qy - 2 * qw * qz
-        r13 = 2 * qx * qz + 2 * qw * qy
-        r21 = 2 * qx * qy + 2 * qw * qz
-        r22 = 1 - 2 * qx ** 2 - 2 * qz ** 2 # [1,1]
-        r23 = 2 * qy * qz - 2 * qw * qx
-        r31 = 2 * qx * qz - 2 * qw * qy
-        r32 = 2 * qy * qz + 2 * qw * qx
-        r33 = 1 - 2 * qx ** 2 - 2 * qy ** 2 # [2,2]
-
-        rot = np.array([
-            [r11,r12,r13],
-            [r21,r22,r23],
-            [r31,r32,r33]
-        ], dtype=np.float32)
-
-        return rot
-    
-    @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
         """座標系の前方ベクトル(基底:単位ベクトル)を求める
 
@@ -437,7 +370,7 @@ class CoorLeftYupZforwardState(CoordinateState):
             np.ndarray: 前方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_z(rot) # forward : Z軸方向ベクトル
+        return get_axis_z(rot) # forward : Z軸正方向
     
     @CoordinateState.overrides(CoordinateState)
     def right_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -450,7 +383,7 @@ class CoorLeftYupZforwardState(CoordinateState):
             np.ndarray: 右方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_x(rot) # right : X軸方向ベクトル
+        return get_axis_x(rot) # right : X軸正方向
     
     @CoordinateState.overrides(CoordinateState)
     def up_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -463,17 +396,18 @@ class CoorLeftYupZforwardState(CoordinateState):
             np.ndarray: 上方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_y(rot) # up : Y軸方向ベクトル
+        return get_axis_y(rot) # up : Y軸正方向
 
 
-# 左手座標系 Zup-Xforward (Unreal Engine 系統)
-class CoorLeftZupXforwardState(CoordinateState):
+# 左手座標系 PosZup-NegYforward-PosXright (Unreal Engine 系統)
+class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
 
     def __init__(self):
-        super(CoorLeftZupXforwardState, self).__init__()
+        super(CoorLH_PZup_NYforward_PXright_State, self).__init__()
         self.coor_style: Optional(str) = "left"
-        self.up_axis: Optional(str) = "z"
-        self.forward_axis: Optional(str) = "x"
+        self.up_axis: Optional(str) = "pos_z"
+        self.forward_axis: Optional(str) = "neg_y"
+        self.right_axis: Optional(str) = "pos_x"
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
@@ -542,7 +476,7 @@ class CoorLeftZupXforwardState(CoordinateState):
             np.ndarray: 前方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_x(rot) # forward : X軸方向ベクトル
+        return -1.0 * get_axis_y(rot) # forward : Y軸負方向
     
     @CoordinateState.overrides(CoordinateState)
     def right_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -555,7 +489,7 @@ class CoorLeftZupXforwardState(CoordinateState):
             np.ndarray: 右方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_y(rot) # right : Y軸方向ベクトル
+        return get_axis_x(rot) # right : X軸正方向
     
     @CoordinateState.overrides(CoordinateState)
     def up_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -568,4 +502,5 @@ class CoorLeftZupXforwardState(CoordinateState):
             np.ndarray: 上方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return axis_z(rot) # up : Z軸方向ベクトル
+        return get_axis_z(rot) # up : Z軸正方向
+    

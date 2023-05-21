@@ -1,4 +1,8 @@
-"""3D幾何の並進・回転
+"""3D座標変換
+定義: 基点座標系の座標成分(x,y,z,w=1)を対象座標系の座標成分(x',y',z',w'=1)に変換する
+@note Transform行列[4x4]
+@note inv(Transform行列[4x4]) = Pose行列[4x4]
+@note inv(Pose行列[4x4]) = Transform行列[4x4]
 """
 
 import os
@@ -13,184 +17,202 @@ import numpy as np
 
 from type_hint import *
 
-from BasicModule.geometry_context import GeometryContext
+from BasicModule.euler_state import EulerState
 from BasicModule.rotation import rot_to_quat
 from BasicModule.rvec import *
-from BasicModule.quartanion import update_quat, rotate_points_by_quat, quat_to_rot
-from BasicModule.euler import euler_to_rot
+from BasicModule.quartanion import cat_quat, rotate_points_by_quat, quat_to_rot
+from BasicModule.euler import euler_to_rot, euler_to_quat
+from BasicModule.pose import get_scale, get_trans, get_rot
 
 
-def translate(trans: Tuple[float, float, float]) -> np.ndarray:
-    """並進ベクトル
+def transform(t: np.ndarray,
+              rot: np.ndarray, 
+              scale: np.ndarray) -> np.ndarray:
+    """Transform行列[4x4]を作成
 
     Args:
-        trans (Tuple[float, float, float]): 並進要素(tx,ty,tz)
+        t (np.ndarray): 並進要素 [3x1] (tx,ty,tz)
+        rot (np.ndarray): 単位クォータニオン[4x1] (qx,qy,qz,qw)
+        scale (np.ndarray): スケール要素[3x1] (sx,sy,sz)
 
     Returns:
-        np.ndarray: 並進ベクトル[3x1]
+        np.ndarray: Transform行列[4x4]
     """
-    tx, ty, tz = trans
-    translation = np.array([tx, ty, tz], dtype=np.float32)
-    return translation
+    if t.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,1) or (3,). Given is {t.shape}")
+    if rot.shape != (3,3):
+        raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
+    if scale.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,1) or (3,). Given is {scale.shape}")
+    
+    T = np.zeros((4,4), dtype=np.float32)
+    T[:3,:3] = rot # 回転要素(3,3)
+    T[:3,3] = t # 並進要素(3,1)
+    T[3,3] = 1.0
+    T[:3,0] *= scale[0]
+    T[:3,1] *= scale[1]
+    T[:3,2] *= scale[2]
+
+    return T
 
 
-def update_transform(M: np.ndarray,
-                     local_add_rot: np.ndarray,
-                     local_add_trans: np.ndarray) -> np.ndarray:
-    """Poseの更新
+def transform(t: np.ndarray,
+              quat: np.ndarray,
+              scale: np.ndarray) -> np.ndarray:
+    """Transform行列[4x4]を作成
 
     Args:
-        M (np.ndarray): Pose行列[4x4]
-        local_add_rot (np.ndarray): ローカル座標系での姿勢変化
-        local_add_trans (np.ndarray): ローカル座標系での並進変化
+        t (np.ndarray): 並進要素 [3x1] (tx,ty,tz)
+        quat (np.ndarray): 単位クォータニオン[4x1] (qx,qy,qz,qw)
+        scale (np.ndarray): スケール要素[3x1] (sx,sy,sz)
+
+    Returns:
+        np.ndarray: Transform行列[4x4]
+    """
+    # クォータニオン -> 回転行列
+    rot = quat_to_rot(quat) # (3,3)
+
+    return transform(t=t, rot=rot, scale=scale)
+
+
+def transform(t: np.ndarray,
+              rvec: np.ndarray,
+              scale: np.ndarray) -> np.ndarray:
+    """Transform行列[4x4]を作成
+
+    Args:
+        t (np.ndarray): 並進要素 [3x1] (tx,ty,tz)
+        rvec (np.ndarray): 回転ベクトル[3x1] (vx,vy,vz)
+        scale (np.ndarray): スケール要素[3x1] (sx,sy,sz)
+
+    Returns:
+        np.ndarray: Transform行列[4x4]
+    """
+    # 回転ベクトル -> 回転行列
+    rot = rvec_to_rot(rvec)
+
+    return transform(t=t, rot=rot, scale=scale)
+
+
+def transform(t: np.ndarray,
+              euler_deg: Tuple[float, float, float],
+              euler_state: EulerState,
+              scale: np.ndarray) -> np.ndarray:
+    """Transform行列[4x4]を作成
+
+    Args:
+        t (np.ndarray): 並進要素 [3x1] (tx,ty,tz)
+        euler_deg (Tuple[float, float, float]): オイラー角(θ1,θ2,θ3)
+        euler_state (EulerState): オイラー角の定義
+        scale (np.ndarray): スケール要素[3x1] (sx,sy,sz)
+
+    Returns:
+        np.ndarray: Transform行列[4x4]
+    """
+    # オイラー角から回転行列に変換
+    theta1_deg, theta2_deg, theta3_deg = euler_deg
+    rot = euler_to_rot(theta1_deg=theta1_deg,
+                       theta2_deg=theta2_deg,
+                       theta3_deg=theta3_deg,
+                       euler_state=euler_state)
+    inv_rot = rot.T # オイラー角は姿勢を表現する回転行列のため, 座標変換では転置しておく.
+
+    return transform(t=t, rot=inv_rot, scale=scale)
+
+
+def update_transform(T: np.ndarray,
+                     update_t: np.ndarray,
+                     update_quat: np.ndarray,
+                     update_scale : np.ndarray) -> np.ndarray:
+    """Transform行列[4x4]の更新
+
+    Args:
+        T (np.ndarray): Pose行列[4x4]
+        update_t (np.ndarray): 並進変化[3x1]
+        update_quat (np.ndarray): 姿勢(クォータニオン)変化[4x1]
+        update_scale (np.ndarray): スケール変化
 
     Returns:
         np.ndarray: 更新後のPose行列[4x4]
     """
-    state_rot = M[:3,:3]
-    state_trans = M[:3,3]
+    if update_t.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,1) or (3,). Given is {update_t.shape}")
+    if update_quat.shape[4] != 4:
+        raise ValueError(f"Not match shape (4,1) or (4,). Given is {update_quat.shape}")
+    if update_scale.shape[0] != 3:
+        raise ValueError(f"Not match shape (3,1) or (3,). Given is {update_scale.shape}")
 
-    new_rot = state_rot @ local_add_rot # 0_R_2 = 0_R_1 @ 1_R_2
-    new_trans = state_rot @ local_add_trans + state_trans # 0_T_2 = 0_R_1 @ 1_T_2 + 0_T_1
+    # 現在の状態
+    state_scale = get_scale(T)
+    state_rot = get_rot(T)
+    state_trans = get_trans(T)
+    
+    # 回転行列 -> クォータニオン
+    state_quat = rot_to_quat(state_rot) # 状態
 
-    new_M = np.zeros((4,4), dtype=np.float32)
-    new_M[:3,:3] = new_rot  # (3,3)
-    new_M[:3,3] = new_trans # (3,1)
-    new_M[3,3] = 1.0
+    # 更新 (回転) : クォータニオンで回転の更新を行う
+    new_state_quat = update_quat(state_quat, update_quat) # 姿勢はクォータニオンで更新
+    new_state_rot = quat_to_rot(new_state_quat) # 0_R_2 = 0_R_1 @ 1_R_2
+    
+    # 更新 (その他)
+    new_state_trans = state_rot @ update_t + state_trans # 0_T_2 = 0_R_1 @ 1_T_2 + 0_T_1
+    new_state_scale = state_scale * update_scale # (sx*usx,sy*usy,sz*usz)
 
-    return new_M
+    new_T = np.eye(4,4, dtype=np.float32)
+    new_T[:3,:3] = new_state_rot  # (3,3)
+    new_T[:3,3] = new_state_trans # (3,1)
+    new_T[:3,0] *= new_state_scale[0] # new_sx
+    new_T[:3,1] *= new_state_scale[1] # new_sy
+    new_T[:3,2] *= new_state_scale[2] # new_sz
+
+    return new_T
 
 
-def update_transform(state_quat: np.ndarray,
-                     state_trans: np.ndarray,
-                     local_add_euler_deg: Tuple[float, float, float], 
-                     local_add_trans: Tuple[float, float, float],
-                     geo_ctx: GeometryContext) -> Tuple[np.ndarray, np.ndarray]:
-    """クォータニオン(回転)と並進によるPoseの更新
+def update_transform(T: np.ndarray,
+                     update_t: np.ndarray,
+                     update_rot: np.ndarray,
+                     update_scale : np.ndarray) -> np.ndarray:
+    """Transform行列[4x4]の更新
 
     Args:
-        state_quat (np.ndarray): 回転状態(クォータニオン) [4x1] (qx,qy,qz,qw)
-        state_trans (np.ndarray): 並進状態(平行移動)     [3x1] (tx,ty,tz)
-        local_add_euler_deg (Tuple[float, float, float]): オイラー角(θ1_deg, θ2_deg, θ3_deg)
-        local_add_trans (Tuple[float, float, float]): 並進(tx,ty,tz)
-        geo_ctx (GeometryContext): 幾何コンテキスト
-
+        M (np.ndarray): Transform行列[4x4]
+        update_t (np.ndarray): 並進変化[3x1]
+        update_rot (np.ndarray): 姿勢(回転行列)変化[3x3]
+        update_scale (np.ndarray): スケール変化[3x1]
     Returns:
-        Tuple[np.ndarray, np.ndarray]: _description_
+        np.ndarray: 更新後のTransform行列[4x4]
     """
     
-    # オイラー角(差分)
-    theta1_deg, theta2_deg, theta3_deg = local_add_euler_deg
+    # クォータニオン(変化量)
+    update_quat = rot_to_quat(update_rot)
 
-    # 回転行列(差分)
-    add_rot = euler_to_rot(theta1_deg=theta1_deg, 
-                           theta2_deg=theta2_deg, 
-                           theta3_deg=theta3_deg, 
-                           euler_state=geo_ctx.euler_state) # (3,3)
+    return update_transform(T=T, update_t=update_t, update_quat=update_quat, update_scale=update_scale)
+
+
+def update_transform(T: np.ndarray,
+                     update_t: np.ndarray,
+                     update_euler_deg: Tuple[float, float, float],
+                     euler_state: EulerState,
+                     update_scale : np.ndarray
+                     ) -> np.ndarray:
+    """Transform行列[4x4]の更新
+
+    Args:
+        T (np.ndarray): Transform行列[4x4]
+        update_t (np.ndarray): 並進変化[3x1]
+        update_euler_deg (Tuple[float, float, float]): オイラー角(θ1,θ2,θ3)変化
+        euler_state (EulerState): オイラー角の定義
+
+    Returns:
+        np.ndarray: 更新後のTransform行列[4x4]
+    """
+    # オイラー角から回転行列に変換
+    update_theta1_deg, update_theta2_deg, update_theta3_deg = update_euler_deg
+    update_rot = euler_to_rot(theta1_deg=update_theta1_deg,
+                              theta2_deg=update_theta2_deg,
+                              theta3_deg=update_theta3_deg,
+                              euler_state=euler_state)
+    inv_update_rot = update_rot.T # オイラー角は姿勢(変化)用なので, 座標変換で使うには転置して逆行列にする.
     
-    # クォータニオン(差分)
-    add_quat = rot_to_quat(add_rot) # (4,1)
-
-    # 回転要素の更新(new_状態 = cur_状態 + 差分)
-    new_quat = update_quat(state_quat, add_quat)
-
-    # 並進要素の更新(new_状態 = cur_状態 + 差分)
-    new_trans = rotate_points_by_quat(local_add_trans, state_quat) + state_trans 
-
-    return (new_quat, new_trans)
-
-
-def get_pose(quat: np.ndarray, 
-             trans: np.ndarray) -> np.ndarray:
-    """クォータニオンと位置ベクトルからPose行列[4x4]を作成
-
-    Args:
-        quat (np.ndarray): 単位クォータニオン[4x1] (qx,qy,qz,qw)
-        trans (np.ndarray): 並進要素 [3x1] (tx,ty,tz)
-
-    Returns:
-        np.ndarray: Pose行列[4x4]
-    """
-    if trans.shape[0] != 3:
-        raise ValueError(f"Not match shape (3,1) or (3,). Given is {trans.shape}")
-
-    rot = quat_to_rot(quat) # (3,3)
-
-    M = np.zeros((4,4), dtype=np.float32)
-    M[:3,:3] = rot # 回転要素(3,3)
-    M[:3,3] = trans # 並進要素(3,1)
-    M[3,3] = 1.0
-
-    return M
-
-
-def get_scale(M: np.ndarray) -> Tuple[float, float, float]:
-    """Pose行列[4x4]からスケール(sx,sy,sz)を求める
-
-    Args:
-        M (np.ndarray): Pose行列 [4x4]
-
-    Returns:
-        Tuple[float, float, float]: (x,y,z)の各軸のスケール
-    """
-    if M.shape != (4,4):
-        raise ValueError(f"Not match shape (4,4) for Pose matrix. Given is {M.shape}")
-
-    # 回転行列    
-    rot = M[:3,:3]
-
-    # R = [rx,ry,rz] 行列は列優先表現なので,Rの3つの列ベクトルが(X軸,Y軸,Z軸)のベクトル
-    rx = rot[:,0]
-    ry = rot[:,1]
-    rz = rot[:,2]
-
-    sx = np.linalg.norm(rx) # 第一列ベクトルのノルム
-    sy = np.linalg.norm(ry) # 第二列ベクトルのノルム
-    sz = np.linalg.norm(rz) # 第三列ベクトルのノルム
-
-    return (sx, sy, sz)
-
-
-def get_rot(M: np.ndarray) -> np.ndarray:
-    """Pose行列[4x4]から回転行列[3x3]を求める
-
-    Args:
-        M (np.ndarray): Pose行列[4x4]
-
-    Returns:
-        np.ndarray: 回転行列[3x3]
-    """
-    if M.shape != (4,4):
-        raise ValueError(f"Not match shape (4,4). Given is {M.shape}")
-    
-    # R=[rx,ry,rz]の各軸のスケール(sx,sy,sz)
-    sx, sy, sz = get_scale(M)
-
-    # スケールが1以外の場合があるので正規化
-    R = M[:3,:3].copy()
-    R[:,0] /= sx
-    R[:,1] /= sy
-    R[:,2] /= sz
-
-    return R
-
-
-def get_trans(M: np.ndarray) -> Tuple[float, float, float]:
-    """Pose行列[4x4]から並進(tx,ty,tz)を求める
-
-    Args:
-        M (np.ndarray): Pose行列[4x4]
-
-    Returns:
-       Tuple[float, float, float]: (x,y,z)の並進成分
-    """
-    if M.shape != (4,4):
-        raise ValueError(f"Not match shape (4,4). Given is {M.shape}")
-    
-    # 行列は列優先表現
-    tx = M[0,3]
-    ty = M[1,3]
-    tz = M[2,3]
-
-    return (tx, ty, tz)
+    return update_transform(T=T, update_t=update_t, update_rot=inv_update_rot, update_scale=update_scale)
 

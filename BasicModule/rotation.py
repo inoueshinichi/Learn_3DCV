@@ -11,140 +11,32 @@ import math
 
 import numpy as np
 
+from BasicModule.euler_state import EulerState
+
+from BasicModule.naive_rotation import ax_rot, ay_rot, az_rot
+
 from type_hint import *
 
 
-def axis_x(rot: np.ndarray) -> np.ndarray:
-    """回転行列からX軸ベクトルを抽出
+def rot_to_euler(rot: np.ndarray,
+                 euler_state: EulerState) -> Tuple[float, float, float]:
+    """回転行列からオイラー角求める
 
     Args:
         rot (np.ndarray): 回転行列[3x3]
+        euler_state (EulerState): オイラー角の定義
 
     Returns:
-        np.ndarray: X軸方向ベクトル[3x1]
+        Tuple[float, float, float]: オイラー角(θ1,θ2,θ3)
     """
-    if rot.shape != (3,3):
-            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
-    
-    norm = np.linalg.norm(rot[:,0]) # X軸成分
-    nx = rot[:,0] / norm # X軸の方向ベクトル(単位ベクトル)
-    return nx
+    theta1_rad, theta2_rad, theta3_rad = euler_state.from_rot(rot)
+    theta1_deg = math.degrees(theta1_rad)
+    theta2_deg = math.degrees(theta2_rad)
+    theta3_deg = math.degrees(theta3_rad)
+
+    return theta1_deg, theta2_deg, theta3_deg
 
 
-def axis_y(rot: np.ndarray) -> np.ndarray:
-    """回転行列からY軸ベクトルを抽出
-
-    Args:
-        rot (np.ndarray): 回転行列[3x3]
-
-    Returns:
-        np.ndarray: Y軸方向ベクトル[3x1]
-    """
-    if rot.shape != (3,3):
-            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
-    
-    norm = np.linalg.norm(rot[:,1]) # Y軸成分
-    ny = rot[:,1] / norm # Y軸の方向ベクトル(単位ベクトル)
-    return ny
-
-
-def axis_z(rot: np.ndarray) -> np.ndarray:
-    """回転行列からZ軸ベクトルを抽出
-
-    Args:
-        rot (np.ndarray): 回転行列[3x3]
-
-    Returns:
-        np.ndarray: Z軸方向ベクトル[3x1]
-    """
-    if rot.shape != (3,3):
-            raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
-    
-    norm = np.linalg.norm(rot[:,2]) # Z軸成分
-    nz = rot[:,2] / norm # Z軸の方向ベクトル(単位ベクトル)
-    return nz
-
-
-def ax_rot(ax_rad: float) -> np.ndarray:
-    """X軸中心の回転ベクトル
-
-    Args:
-        ax_deg (float): 角度[deg]
-
-    Returns:
-        np.ndarray: 回転行列(3x3)
-    """
-    ax_rot = np.array([
-        1, 0, 0,
-        0, math.cos(ax_rad), -math.sin(ax_rad),
-        0, math.sin(ax_rad), math.cos(ax_rad)
-    ], dtype=np.float32).reshape(3,3)
-    return ax_rot
-
-
-def ay_rot(ay_rad: float) -> np.ndarray:
-    """Y軸中心の回転ベクトル
-
-    Args:
-        ay_deg (float): 角度[deg]
-
-    Returns:
-        np.ndarray: 回転行列(3x3)
-    """
-    ay_rot = np.array([
-        math.cos(ay_rad), 0, math.sin(ay_rad),
-        0, 1, 0,
-        -math.sin(ay_rad), 0, math.cos(ay_rad)
-    ], dtype=np.float32).reshape(3,3)
-    return ay_rot
-
-
-def az_rot(az_rad: float) -> np.ndarray:
-    """Z軸中心の回転行列
-
-    Args:
-        az_deg (float): 角度[deg]
-
-    Returns:
-        np.ndarray: 回転行列(3x3)
-    """
-    az_rot = np.array([
-        math.cos(az_rad), -math.sin(az_rad), 0,
-        math.sin(az_rad), math.cos(az_rad), 0,
-        0, 0, 1
-    ], dtype=np.float32).reshape(3,3)
-    return az_rot
-
-
-def dt_rot(rot: np.ndarray, omega: np.ndarray) -> np.ndarray:
-    """回転行列の微分(ポアソンの微分公式)
-
-    Args:
-        rot (np.ndarray): 回転行列[3x3]
-        omega (np.ndarray): 角速度ベクトル[3x1]
-
-    Returns:
-        np.ndarray: 回転行列の微分[3x3]
-    """
-    if rot.shape != (3,3):
-        raise ValueError(f"Not match shape (3,3). Given is {rot.shape}")
-
-    if omega.shape != (3,1):
-        raise ValueError(f"Not match shape (3,1). Given is {omega.shape}")
-    
-    # 角速度ベクトルの歪対称行列
-    tilde_omega: np.ndarray = np.zeros(3, 3, dtype=np.float32)
-    tilde_omega[0,1] = omega[2]
-    tilde_omega[0,2] = -omega[1]
-    tilde_omega[1,0] = -omega[2]
-    tilde_omega[1,2] = omega[0]
-    tilde_omega[2,0] = omega[1]
-    tilde_omega[2,1] = -omega[0]
-
-    return tilde_omega @ rot
-
-
-# バグがある.
 def rot_to_rvec(rot: np.ndarray) -> np.ndarray:
     """回転行列から回転ベクトルを求める
 
@@ -166,6 +58,10 @@ def rot_to_rvec(rot: np.ndarray) -> np.ndarray:
     l = np.array([A[2,1],A[0,2],A[1,0]], dtype=np.float32) # [nx*sin,ny*sin,nz*sin]
     s = np.linalg.norm(l) # sin
     c = 0.5 * (rot[0,0] + rot[1,1] + rot[2,2] - 1) # cos
+
+    # print("A(=0.5*(R-R^T))\n", A)
+    # print("sin(θ)=", s)
+    # print("cons(θ)=", c)
 
     rvec = np.array([0, 0, 0], dtype=np.float32) # 回転ベクトル
     n = np.array([0, 0, 0], dtype=np.float32) # 方向ベクトル
@@ -269,4 +165,6 @@ def rot_to_quat(rot: np.ndarray) -> np.ndarray:
     # quat = [qw,qx,qy,qz] = qw + qx*i + qy*j + qz*k
     quat = np.array([qw,qx,qy,qz], dtype=np.float32)
     return quat / np.linalg.norm(quat)
+
+
 

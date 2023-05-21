@@ -1,4 +1,4 @@
-"""回転(姿勢)の性質に関するテスト
+"""回転姿勢(回転行列)の性質に関するテスト
 """
 
 import os
@@ -15,7 +15,7 @@ import scipy as sp
 
 np.set_printoptions(suppress=True) # 指数表記禁止
 
-from BasicModule.quartanion import quat, dot_quat, update_quat, quat_to_rot, norm_quat, normalize_quat, inv_quat
+from BasicModule.quartanion import quat, dot_quat, cat_quat, quat_to_rot, norm_quat, normalize_quat, inv_quat
 from BasicModule.rvec import rvec, rvec_to_rot, rotate_points_by_rvec, rvec_to_quat
 from BasicModule.rotation import ax_rot, ay_rot, az_rot, rot_to_quat, rot_to_rvec
 from BasicModule.euler import rot_to_euler, euler_to_rot
@@ -23,95 +23,6 @@ from BasicModule.geometry_context import GeometryContext
 
 from type_hint import *
 from test_util import test_decorator
-
-
-
-
-
-
-
-
-@test_decorator
-def test_euler_rot_quat():
-    """オイラー角指定による回転要素(クォータニオン)の更新と逆更新
-    """
-
-    geo_ctx = GeometryContext()
-
-    # 状態としてのオイラー角
-    state_theta1_deg = 30
-    state_theta2_deg = 45
-    state_theta3_deg = 60
-    print("Init Euler({},{},{})".format(state_theta1_deg, state_theta2_deg, state_theta3_deg))
-
-    # 回転行列に変換
-    state_rot = euler_to_rot(theta1_deg=state_theta1_deg,
-                             theta2_deg=state_theta2_deg,
-                             theta3_deg=state_theta3_deg,
-                             euler_state=geo_ctx.euler_state)
-    print("Init Rot\n", state_rot)
-    
-    # 初期状態のクォータニオン
-    state_quat = rot_to_quat(state_rot)
-    print("norm(state_quat)=", norm_quat(state_quat))
-    print("Init Quat", state_quat)
-
-    # 更新としてのオイラー角
-    add_theta1_deg = 45
-    add_theta2_deg = 45
-    add_theta3_deg = 45
-
-    # 回転行列に変換
-    add_rot = euler_to_rot(theta1_deg=add_theta1_deg,
-                           theta2_deg=add_theta2_deg,
-                           theta3_deg=add_theta3_deg,
-                           euler_state=geo_ctx.euler_state)
-    print("det(add_rot)=", np.linalg.det(add_rot))
-    
-    # クォータニオンに変換
-    add_quat = rot_to_quat(add_rot)
-    print("norm(add_quat)=", norm_quat(add_quat))
-
-    # 更新
-    state_new_quat = update_quat(state_quat, add_quat)
-    print("New Quat", state_new_quat)
-
-    # 新しい回転状態
-    state_new_rot = quat_to_rot(state_new_quat)
-    print("det(state_new_rot)=", np.linalg.det(state_new_rot))
-    print("New Rot\n", state_new_rot)
-    
-
-    # オイラー角に変換
-    state_new_theta1_deg, \
-    state_new_theta2_deg, \
-    state_new_theta3_deg = rot_to_euler(state_new_rot, geo_ctx.euler_state)
-    print("New Euler({},{},{})".format(state_new_theta1_deg, state_new_theta2_deg, state_new_theta3_deg))
-
-    # 逆クォータニオン
-    inv_add_quat = inv_quat(add_quat)
-    print("norm(inv_add_quat)=", norm_quat(inv_add_quat))
-    
-    # 逆更新
-    state_return_quat = update_quat(state_new_quat, inv_add_quat)
-    print("Return Quat", state_return_quat)
-    
-    # 差分(終点-始点)
-    diff_quat = state_return_quat - state_quat
-    print("diff_quat=", diff_quat)
-
-    # 終点(回転行列)
-    state_return_rot = quat_to_rot(state_return_quat)
-    print("Return Rot\n", state_return_rot)
-
-    # オイラー角に変換
-    state_return_theta1_deg, \
-    state_return_theta2_deg, \
-    state_return_theta3_deg = rot_to_euler(state_return_rot, geo_ctx.euler_state)
-    print("Return Euler({},{},{})".format(state_return_theta1_deg, state_return_theta2_deg, state_return_theta3_deg))
-
-
-
 
 
 
@@ -224,33 +135,10 @@ def test_neg3_rot():
     print("det(neg3_sR)=", np.linalg.det(neg3_sR))
 
 
-def test_check_rvec():
-    """回転ベクトルの動作確認
-    """
-    n = np.array([1,0,0], dtype=np.float32) # x軸
-    theta = math.radians(60)
-    
-    x_rvec = rvec(n, theta) # 回転ベクトル
-    xR = ax_rot(theta) # 回転行列
-
-    # 点群
-    points = np.random.randn(3,5)
-    print("points\n", points)
-
-    A = xR @ points
-    print("A = xR @ points\n", A)
-    B = rotate_points_by_rvec(points,x_rvec)
-    print("B = rotate_points_by_rvec(points,x_rvec)\n", B)
-
-    print("diff: A - B\n", A - B)
-
 
 if __name__ == "__main__":
-    # test_rot_euler()
-    test_rot_quat()
-    # test_euler_rot_quat()
-    # test_replace_rot()
-    # test_neg1_rot()
-    # test_neg2_rot()
-    # test_neg3_rot()
-    # test_check_rvec()
+    # test_replace_rot() # OK
+    # test_neg1_rot() # OK
+    # test_neg2_rot() # OK
+    # test_neg3_rot() # OK
+    pass

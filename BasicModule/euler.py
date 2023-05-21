@@ -13,6 +13,7 @@ import numpy as np
 from type_hint import *
 
 from BasicModule.euler_state import EulerState
+from BasicModule.rotation import rot_to_rvec, rot_to_quat
 
 def euler_to_rot(theta1_deg: float, 
                  theta2_deg: float, 
@@ -21,9 +22,9 @@ def euler_to_rot(theta1_deg: float,
     """オイラー角から回転行列を求める
 
     Args:
-        theta1_deg (float): 第一オイラー角
-        theta2_deg (float): 第二オイラー角
-        theta3_deg (float): 第三オイラー角
+        theta1_deg (float): 第1オイラー角
+        theta2_deg (float): 第2オイラー角
+        theta3_deg (float): 第3オイラー角
         euler_state (EulerState): オイラー角の定義
 
     Returns:
@@ -36,21 +37,54 @@ def euler_to_rot(theta1_deg: float,
     return euler_state.to_rot(theta1_rad, theta2_rad, theta3_rad)
 
 
-def rot_to_euler(rot: np.ndarray,
-                 euler_state: EulerState) -> Tuple[float, float, float]:
-    """回転行列からオイラー角求める
+def euler_to_rvec(theta1_deg: float,
+                  theta2_deg: float,
+                  theta3_deg: float,
+                  euler_state: EulerState) -> np.ndarray:
+    """オイラー角から回転ベクトルを求める
 
     Args:
-        rot (np.ndarray): 回転行列[3x3]
+        theta1_deg (float): 第1オイラー角
+        theta2_deg (float): 第2オイラー角
+        theta3_deg (float): 第3オイラー角
         euler_state (EulerState): オイラー角の定義
 
     Returns:
-        Tuple[float, float, float]: オイラー角(θ1,θ2,θ3)
+        np.ndarray: 回転ベクトル[3x1]
     """
-    theta1_rad, theta2_rad, theta3_rad = euler_state.from_rot(rot)
-    theta1_deg = math.degrees(theta1_rad)
-    theta2_deg = math.degrees(theta2_rad)
-    theta3_deg = math.degrees(theta3_rad)
+    # 回転行列
+    rot = euler_to_rot(theta1_deg, theta2_deg, theta3_deg , euler_state)
 
-    return theta1_deg, theta2_deg, theta3_deg
+    # 回転ベクトル
+    rvec = rot_to_rvec(rot)
+    
+    return rvec
+
+
+def euler_to_quat(theta1_deg: float,
+                  theta2_deg: float,
+                  theta3_deg: float,
+                  euler_state: EulerState) -> np.ndarray:
+    """オイラー角からクォータニオンを求める
+
+    Args:
+        theta1_deg (float): 第1オイラー角
+        theta2_deg (float): 第2オイラー角
+        theta3_deg (float): 第3オイラー角
+        euler_state (EulerState): オイラー角の定義
+
+    Returns:
+        np.ndarray: クォータニオン[4x1]
+    """
+    # 回転行列
+    rot = euler_to_rot(theta1_deg, theta2_deg, theta3_deg , euler_state)
+
+    # クォータニオン
+    quat = rot_to_quat(rot)
+
+    return quat
+
+
+
+
 
