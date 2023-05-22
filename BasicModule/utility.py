@@ -99,6 +99,7 @@ def nip(img_pts: np.ndarray, K: np.ndarray) -> np.ndarray:
     npts /= npts[-1,:] # w=1
     return npts
 
+
 def lerp(a: Union[np.ndarray, float], b: Union[np.ndarray, float], f: float) -> Union[np.ndarray, float]:
     """線形補完 (ベクトルのパラメータ表現)
 
