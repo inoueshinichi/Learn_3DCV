@@ -15,12 +15,42 @@ from BasicModule.utility import get_axis_x, get_axis_y, get_axis_z
 
 from type_hint import *
 
-"""座標系定義
+"""
+Perspective Division
+  カメラ座標(Xc,Yc,Zc,1)をWc'(=およそZc)で, 
+  NDC座標(Xc'/Wc',Yc'/Wc',Zc'/Wc')=(Xndc,Yndc,Zndc)に正規化すること.
 
-  1. 右手系 or 左手系
-  2. up, forward, right
-  @note 基本的にrightをX軸正方向にするが, OpenGL系だけX軸負方向になる.
-  @note UE系はforwardがY軸負方向
+  [Xc',Yc',Zc',Wc'].T = P[[p11,p12,p13,p14],
+                          [p21,p22,p23,p24],
+                          [p31,p32,p33,p34],
+                          [p41,p42,p43,p44]] @ [Xc,Yc,Zc,1].T
+
+  Xc' = p11*Xc + p12*Yc + p13*Zc + p14*1
+  Yc' = p21*Xc + p22*Yc + p23*Zc + p24*1
+  Zc' = p31*Xc + p32*Yc + p33*Zc + p34*1
+  Wc' = p41*Xc + p42*Yc + p43*Zc + p44*1 
+  
+  NDC座標(Xc'/Wc',Yc'/Wc',Zc'/Wc')=(Xndc[-1,1],Yndc[-1,1],Zndc[0,1]or[-1,1])
+
+  @warning ピンホールカメラモデルでは p41=p42=p43=p44=Wc'=0になり, Zc=1の面に像が投影される.
+  その際, NDC座標ではなく, NIC座標(Zc=1)の平面の撮像素子矩形領域に像が投影される.
+  NIC座標(Xc'/Zc',Yc'/Zc',W=Z=1)=(Xnic[-1,1],Ynic[-1,1],1)
+
+
+座標系定義
+  | 手系 | Framework | object-up | object-forward | object-right | camera-up | camera-forward | camera-right | 奥行きクリッピング範囲(NDCのZ) | 備考 |
+  | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+  | 右手 | OpenCV系           | +Zo | +Yo | +Xo | -Yc | +Zc | +Xc | Z\[0,+1\]  | カメラ座標系のXY軸が画像座標と一致. |
+  | 右手 | OpenGL系(default)  | +Yo | +Zo | -Xo | +Yc | -Zc | +Xc | Z\[-1,+1\] | カメラ座標系のY軸が画像座標系と反転している. カメラ視線方向がZ軸負の向き. |
+  | 左手 | DirectX系          | +Yo | +Zo | +Xo | +Yc | +Zc | +Xc | Z\[0,+1\]  | カメラ座標系のY軸が画像座標系と反転している. |
+  | 左手 | UE系               | +Zo | +Xo | +Yo | -Yc | -Zc | +Xc | Z\[0,+1\]  | カメラ座標系のXY軸が画像座標と一致. カメラ視線方向がZ軸負の向き. |
+
+  @warning OpenCV系は, 一番しっくり来る座標系. 物理・工学・CV系で多様される. 
+  @warning OpenGL系は, glClipControl(GL_UPPER_LEFT)関数で,`Perspective Division`時にY軸反転できる. 
+  @warning OpenGL系は, glClipControl(GL_ZERO_TO_ONE)関数で, NDCの奥行きクリッピング範囲をZ/[0,+1¥]に変更できる.
+  @warning DirectX系は, `Perspective Division`の際にY軸符号を反転させる.
+
+  
   @note 最もしっくり来る座標系定義がRH_PZup_PYforward_PXrightになるOpenCV系, 
   もしくは, LH_PZup_PYforward_PXrightになるDirectX系. 
   
@@ -83,11 +113,17 @@ class CoordinateState(metaclass=abc.ABCMeta):
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
 
 
-# 右手座標系 PosYup-PosZforward-NegXright (OpenGL, AutoDesk Maya, SolidWorks 系統)
+# 右手座標系 PosYup-PosZforward-NegXright (OpenGL(default), AutoDesk Maya, SolidWorks 系統)
 class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
 
     def __init__(self):
         super(CoorRH_PYup_PZforward_NXright_State, self).__init__()
+        """
+        オブジェクトの座標系
+           y z (正面方向)
+           |/
+        x---
+        """ 
         self.coor_style: Optional(str) = "right"
         self.up_axis: Optional(str) = "pos_y"
         self.forward_axis: Optional(str) = "pos_z"
@@ -193,6 +229,12 @@ class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
 class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
 
     def __init__(self):
+        """
+        オブジェクトの座標系
+         z y(正面方向)
+         |/
+         ---x
+        """
         super(CoorRH_PZup_PYforward_PXright_State, self).__init__()
         self.coor_style: Optional(str) = "right"
         self.up_axis: Optional(str) = "pos_z"
@@ -209,7 +251,7 @@ class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
         視線方向: Z軸の正の向き
         右方向: X軸の正の向き
         上方向: Y軸の負の向き
-          z : 視線方向
+          z(視線方向)
          /
         /---x
         |
@@ -299,6 +341,11 @@ class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
 class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
 
     def __init__(self):
+        """オブジェクトの座標系
+         y z(正面方向)
+         |/
+         ---x
+        """
         super(CoorLH_PYup_PZforward_PXright_State, self).__init__()
         self.coor_style: Optional(str) = "left"
         self.up_axis: Optional(str) = "pos_y"
@@ -314,10 +361,9 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
         視線方向: Z軸の正の向き
         右方向: X軸の正の向き
         上方向: Y軸の正の向き
-         y
-         |
-         /---z : 視線方向
-        x
+         y z(視線方向)
+         |/
+         ---x
         Args:
             target_pos (np.ndarray): ターゲット位置ベクトル[3x1]
             camera_pos (np.ndarray): カメラ中心位置ベクトル[3x1]
@@ -403,6 +449,12 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
 class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
 
     def __init__(self):
+        """オブジェクトの座標系
+          z 正面方向
+          |/
+          /---x
+         y
+        """
         super(CoorLH_PZup_NYforward_PXright_State, self).__init__()
         self.coor_style: Optional(str) = "left"
         self.up_axis: Optional(str) = "pos_z"
