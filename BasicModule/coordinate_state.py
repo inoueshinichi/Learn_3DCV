@@ -93,6 +93,12 @@ class CoordinateState(metaclass=abc.ABCMeta):
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def perspective_division(self, camera_points: np.ndarray, ndc: bool = True) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
         
     @abc.abstractclassmethod
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -183,6 +189,23 @@ class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
         ], dtype=np.float32) # 列優先表現
 
         return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def perspective_division(self, points: np.ndarray, nic: bool = True) -> np.ndarray:
+        """カメラ座標系からNIC座標系(or NDC座標系)に変換
+
+        Args:
+            points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
+            nic (bool): NDC座標系への変換フラグ
+        Returns:
+            np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
+        """
+        if nic:
+            # ピンホールカメラモデルによる撮像素子平面への投影
+            pass
+        else:
+            # Zバッファによるカリングを考慮したピクセルレンダリング
+            pass
 
     
     @CoordinateState.overrides(CoordinateState)
@@ -298,6 +321,23 @@ class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
         return V
     
     @CoordinateState.overrides(CoordinateState)
+    def perspective_division(self, points: np.ndarray, nic: bool = True) -> np.ndarray:
+        """カメラ座標系からNIC座標系(or NDC座標系)に変換
+
+        Args:
+            points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
+            nic (bool): NDC座標系への変換フラグ
+        Returns:
+            np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
+        """
+        if nic:
+            # ピンホールカメラモデルによる撮像素子平面への投影
+            pass
+        else:
+            # Zバッファによるカリングを考慮したピクセルレンダリング
+            pass
+    
+    @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
         """座標系の前方ベクトル(基底:単位ベクトル)を求める
 
@@ -404,6 +444,23 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
         ], dtype=np.float32) # 列優先表現
 
         return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def perspective_division(self, points: np.ndarray, nic: bool = True) -> np.ndarray:
+        """カメラ座標系からNIC座標系(or NDC座標系)に変換
+
+        Args:
+            points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
+            nic (bool): NDC座標系への変換フラグ
+        Returns:
+            np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
+        """
+        if nic:
+            # ピンホールカメラモデルによる撮像素子平面への投影
+            pass
+        else:
+            # Zバッファによるカリングを考慮したピクセルレンダリング
+            pass
     
     @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -518,6 +575,23 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
         return V
     
     @CoordinateState.overrides(CoordinateState)
+    def perspective_division(self, points: np.ndarray, nic: bool = True) -> np.ndarray:
+        """カメラ座標系からNIC座標系(or NDC座標系)に変換
+
+        Args:
+            points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
+            nic (bool): NDC座標系への変換フラグ
+        Returns:
+            np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
+        """
+        if nic:
+            # ピンホールカメラモデルによる撮像素子平面への投影
+            pass
+        else:
+            # Zバッファによるカリングを考慮したピクセルレンダリング
+            pass
+    
+    @CoordinateState.overrides(CoordinateState)
     def forward_axis(self, rot: np.ndarray) -> np.ndarray:
         """座標系の前方ベクトル(基底:単位ベクトル)を求める
 
@@ -528,7 +602,7 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
             np.ndarray: 前方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return -1.0 * get_axis_y(rot) # forward : Y軸負方向
+        return get_axis_x(rot) # forward : X軸正方向
     
     @CoordinateState.overrides(CoordinateState)
     def right_axis(self, rot: np.ndarray) -> np.ndarray:
@@ -541,7 +615,7 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
             np.ndarray: 右方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return get_axis_x(rot) # right : X軸正方向
+        return get_axis_y(rot) # right : Y軸正方向
     
     @CoordinateState.overrides(CoordinateState)
     def up_axis(self, rot: np.ndarray) -> np.ndarray:
