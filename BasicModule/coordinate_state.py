@@ -37,18 +37,20 @@ Perspective Division
   NIC座標(Xc'/Zc',Yc'/Zc',W=Z=1)=(Xnic[-1,1],Ynic[-1,1],1)
 
 
-座標系定義
+座標系定義 (右手系と左手系の区別以外は, 座標軸の向きを[x,y,z]のどれに割り当てるかで複数通りあるが, ここでは,一般的なくくり方で表記する)
   | 手系 | Framework | object-up | object-forward | object-right | camera-up | camera-forward | camera-right | 奥行きクリッピング範囲(NDCのZ) | 備考 |
   | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-  | 右手 | OpenCV系           | +Zo | +Yo | +Xo | -Yc | +Zc | +Xc | Z\[0,+1\]  | カメラ座標系のXY軸が画像座標と一致. |
-  | 右手 | OpenGL系(default)  | +Yo | +Zo | -Xo | +Yc | -Zc | +Xc | Z\[-1,+1\] | カメラ座標系のY軸が画像座標系と反転している. カメラ視線方向がZ軸負の向き. |
-  | 左手 | DirectX系          | +Yo | +Zo | +Xo | +Yc | +Zc | +Xc | Z\[0,+1\]  | カメラ座標系のY軸が画像座標系と反転している. |
-  | 左手 | UE系               | +Zo | +Xo | +Yo | -Yc | -Zc | +Xc | Z\[0,+1\]  | カメラ座標系のXY軸が画像座標と一致. カメラ視線方向がZ軸負の向き. |
+  | 右手 | OpenGL系  | +Yo | -Zo | +Xo | +Yc | -Zc | +Xc | Z[-1,+1] | カメラ座標系のY軸が画像座標系と反転している. カメラ視線方向がZ軸正の向き. |
+  | 右手 | OpenCV系  | +Zo | +Yo | +Xo | -Yc | +Zc | +Xc | Z[0,+1]  | カメラ座標系のXY軸が画像座標と一致. カメラ視線方向がZ軸正の向き. |
+  | 左手 | DirectX系 | +Yo | +Zo | +Xo | +Yc | +Zc | +Xc | Z[0,+1]  | カメラ座標系のY軸が画像座標系と反転している. カメラ視線方向がZ軸正の向き. |
+  | 左手 | UE系      | +Zo | +Xo | +Yo | -Yc | -Zc | +Xc | Z[0,+1]  | カメラ座標系のXY軸が画像座標と一致. カメラ視線方向がZ軸負の向き. |
 
   @warning OpenCV系は, 一番しっくり来る座標系. 物理・工学・CV系で多様される. 
   @warning OpenGL系は, glClipControl(GL_UPPER_LEFT)関数で,`Perspective Division`時にY軸反転できる. 
   @warning OpenGL系は, glClipControl(GL_ZERO_TO_ONE)関数で, NDCの奥行きクリッピング範囲をZ/[0,+1¥]に変更できる.
   @warning DirectX系は, `Perspective Division`の際にY軸符号を反転させる.
+
+  @note OpenGL系(custom) : glClipControl(GL_UPPER_LEFT) と glClipControl(GL_ZERO_TO_ONE) を適用
 
   
   @note 最もしっくり来る座標系定義がRH_PZup_PYforward_PXrightになるOpenCV系, 
@@ -63,6 +65,18 @@ Perspective Division
   @warning 回転ベクトルとクォータニオンは右手系と左手系でベクトル成分の符号が異なる.
            鏡映軸以外の符号を反転させる. 回転量はそのままでよい.
 """
+
+# 右手座標系 PosYup-PosZforward-NegXright (OpenGL, AutoDesk Maya, SolidWorks 系統)
+# CoorRH_PYuPZfNXrState
+# 右手座標系 PosZup-PosYforward-PosXright (OpenCV, Blender, AutoCAD 系統)
+# CoorRH_PZuPYfPXrState
+# 左手座標系 PosYup-PosZforward-PosXright (Direct3D, Metal, Unity 系統)
+# CoorLH_PYuPZfPXrState
+# 左手座標系 PosZup-NegYforward-PosXright (Unreal Engine 系統)
+# CoorLH_PZuNYfPXrState
+
+
+
 class CoordinateState(metaclass=abc.ABCMeta):
 
     # 派生クラスへのインターフェースAPIの強制
@@ -80,10 +94,39 @@ class CoordinateState(metaclass=abc.ABCMeta):
         return wrapper
 
     def __init__(self):
-        self.coor_style: Optional(str) = None
-        self.up_axis: Optional(str) = None
-        self.forward_axis: Optional(str) = None
-        self.right_axis: Optional(str) = None
+        # 行列スタイル (行優先表現: "row-major", 列優先表現: "col-major")
+        self.mat_str: Optional[str] = None
+
+        # 座標系スタイル (左手系: "left", 右手系: "right")
+        self.coor_str: Optional[str] = None
+
+        # オブジェクト座標系の方向
+        self.obj_forward_str: Optional[str] = None
+        self.obj_up_str: Optional[str] = None
+        self.obj_right_str: Optional[str] = None
+
+        # カメラ座標系の方向
+        self.cam_forward_str: Optional[str] = None
+        self.cam_up_str: Optional[str] = None
+        self.cam_right_str: Optional[str] = None
+
+        # 透視投影変換行列[4x4]
+        self.perspective_matrix: np.ndarray = np.ones(4, dtype=np.float32)
+
+        # Inverse Z for NDC 
+        # False: NDC Z[0,1] <-> Depth [near,far]
+        # True: NDC Z[1,0] <-> Depth [near,far]
+        self.is_inverse_z: bool = False
+
+        # Infinity Z for NDC
+
+        # カメラ座標系の各軸方向
+        self.cam_x: np.ndarray = np.zeros(3, dtype=np.float32)
+        self.cam_y: np.ndarray = np.zeros(3, dtype=np.float32)
+        self.cam_z: np.ndarray = np.zeros(3, dtype=np.float32)
+
+        # カメラ座標(位置)
+        self.cam_pos: np.ndarray = np.zeros(3, dtype=np.float32)
 
     @abc.abstractclassmethod
     def look_at(self, 
@@ -95,59 +138,141 @@ class CoordinateState(metaclass=abc.ABCMeta):
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
     
     @abc.abstractclassmethod
-    def perspective_division(self, camera_points: np.ndarray, ndc: bool = True) -> np.ndarray:
+    def perspective_division(self, 
+                             camera_points: np.ndarray, 
+                             ndc: bool = True,
+                             ) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    """ Object Direction """
         
     @abc.abstractclassmethod
-    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
+    def obj_forward_axis(self, 
+                         rot: np.ndarray,
+                         ) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
     
     @abc.abstractclassmethod
-    def right_axis(self, rot: np.ndarray) -> np.ndarray:
+    def obj_right_axis(self, 
+                       rot: np.ndarray,
+                       ) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
     
     @abc.abstractclassmethod
-    def up_axis(self, rot: np.ndarray) -> np.ndarray:
+    def obj_up_axis(self, 
+                    rot: np.ndarray,
+                    ) -> np.ndarray:
         func_name = inspect.currentframe().f_code.co_name
         class_name = self.__class__.__name__
         raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    """ Object Axis """
+    
+    @abc.abstractclassmethod
+    def obj_x_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def obj_y_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def obj_z_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    """ Object Direction """
+    
+    @abc.abstractclassmethod
+    def cam_forward_axis(self) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def cam_right_axis(self) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def cam_up_axis(self) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    """ Object Axis """
 
+    @abc.abstractclassmethod
+    def cam_x_axis(self) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def cam_y_axis(self) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
+    @abc.abstractclassmethod
+    def cam_z_axis(self) -> np.ndarray:
+        func_name = inspect.currentframe().f_code.co_name
+        class_name = self.__class__.__name__
+        raise NotImplementedError(f"No implement {func_name} on {class_name}")
+    
 
-# 右手座標系 PosYup-PosZforward-NegXright (OpenGL(default), AutoDesk Maya, SolidWorks 系統)
-class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
+# 右手座標系 PosYup-PosZforward-NegXright (OpenGL, AutoDesk Maya, SolidWorks 系統)
+class CoorRH_PYuPZfNXrState(CoordinateState):
 
     def __init__(self):
-        super(CoorRH_PYup_PZforward_NXright_State, self).__init__()
         """
         オブジェクトの座標系
-           y z (正面方向)
-           |/
-        x---
+          y (正面方向)
+          |
+          /---x
+         z
         """ 
-        self.coor_style: Optional(str) = "right"
-        self.up_axis: Optional(str) = "pos_y"
-        self.forward_axis: Optional(str) = "pos_z"
-        self.right_axis: Optional(str) = "neg_x"
+        super(CoorRH_PYuPZfNXrState, self).__init__()
+        self.mat_str = "col-major"
+        self.coor_str = "right"
+        self.obj_forward_str = "nz"
+        self.obj_up_str = "py"        
+        self.obj_right_str = "px"
+        self.cam_forward_str = "pz"
+        self.cam_up_str = "py"
+        self.cam_right_str = "px"
+        
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
                target_pos: np.ndarray, 
                camera_pos: np.ndarray, 
-               up_axis: Tuple[float, float, float] = [0,1,0]) -> np.ndarray:
+               up_axis: Tuple[float, float, float] = (0.0, 1.0, 0.0)) -> np.ndarray:
         """カメラのView行列[4x4]を求める
-        視線方向: Z軸の負の向き
+        視線方向: Z軸の正の向き
         右方向: X軸の正の向き
         上方向: Y軸の正の向き
-         y 視線方向
+         y z 視線方向
          |/
          /---x
-        z
         Args:
             target_pos (np.ndarray): ターゲット位置ベクトル[3x1]
             camera_pos (np.ndarray): カメラ中心位置ベクトル[3x1]
@@ -156,7 +281,7 @@ class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
         Returns:
             np.ndarray: カメラのView行列[4x4]
         """
-        # カメラのZ軸負向きベクトル(単位ベクトル) : 視線ベクトル
+        # 視線ベクトル
         ct_vec = target_pos - camera_pos
         cam_eye = ct_vec / np.linalg.norm(ct_vec)
 
@@ -169,6 +294,286 @@ class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
 
         # カメラY軸正向きベクトル(単位ベクトル)
         cam_y = np.cross(cam_x, cam_eye)
+        cam_y /= np.linalg.norm(cam_y)
+
+        # カメラZ軸正向きベクトル(単位ベクトル)
+        cam_z = np.cross(cam_y, cam_x)
+        cam_z /= np.linalg.norm(cam_z)
+
+        # カメラ位置
+        tx = -1.0 * np.dot(cam_x, camera_pos)
+        ty = -1.0 * np.dot(cam_y, camera_pos)
+        tz = -1.0 * np.dot(cam_z, camera_pos)
+
+        # 4x4行列(ΣWの座標をΣCの座標に変換)
+        V = np.array([
+            [cam_x[0], cam_y[0], cam_z[0], tx],
+            [cam_x[1], cam_y[1], cam_z[1], ty],
+            [cam_x[2], cam_y[2], cam_z[2], tz],
+            [0.0, 0.0, 0.0, 1.0]
+        ], dtype=np.float32) # 列優先表現
+
+        # カメラ座標系の基底軸(方向)を保存
+        self.cam_x = cam_x
+        self.cam_y = cam_y
+        self.cam_z = cam_z
+
+        # カメラの座標系の位置を保存
+        self.cam_pos = np.array([tx, ty, tz], dtype=np.float32)
+
+        return V
+    
+    @CoordinateState.overrides(CoordinateState)
+    def perspective_division(self, 
+                             camera_points: np.ndarray, 
+                             nic: bool = True,
+                             ) -> np.ndarray:
+        """カメラ座標系からNIC座標系(or NDC座標系)に変換
+
+        Args:
+            camera_points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
+            nic (bool): NDC座標系への変換フラグ
+        Returns:
+            np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
+        """
+        if nic:
+            # ピンホールカメラモデルによる撮像素子平面への投影
+            pass
+        else:
+            # Zバッファによるカリングを考慮したピクセルレンダリング
+            pass
+
+    """ Object Direction """
+
+    @CoordinateState.overrides(CoordinateState)
+    def obj_forward_axis(self, 
+                         rot: np.ndarray,
+                         ) -> np.ndarray:
+        """オブジェクト座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_z(rot) # forward : Z軸正方向
+
+    @CoordinateState.overrides(CoordinateState)
+    def obj_right_axis(self, 
+                       rot: np.ndarray,
+                       ) -> np.ndarray:
+        """オブジェクト座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return -1.0 * get_axis_x(rot) # right : X軸負方向
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_up_axis(self, 
+                    rot: np.ndarray,
+                    ) -> np.ndarray:
+        """オブジェクト座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_y(rot) # up : Y軸正方向
+    
+    """ Object Axis """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_x_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        """オブジェクト座標系のX軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_x(rot) # forward : X軸正方向
+
+    @CoordinateState.overrides(CoordinateState)
+    def obj_y_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        """オブジェクト座標系のY軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: Y軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_y(rot) # forward : Y軸正方向
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_z_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        """オブジェクト座標系のZ軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_z(rot) # forward : Z軸正方向
+    
+    """ Camera Direction """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_forward_axis(self) -> np.ndarray:
+        """カメラ座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_z
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_up_axis(self) -> np.ndarray:
+        """カメラ座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return -1.0 * self.cam_y
+
+    @CoordinateState.overrides(CoordinateState)
+    def cam_right_axis(self) -> np.ndarray:
+        """カメラ座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_x
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_x_axis(self) -> np.ndarray:
+        """カメラ座標系のX軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_x
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_y_axis(self) -> np.ndarray:
+        """カメラ座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_y
+
+    @CoordinateState.overrides(CoordinateState)
+    def cam_z_axis(self) -> np.ndarray:
+        """カメラ座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_z
+
+        
+# 右手座標系 PosZup-PosYforward-PosXright (OpenCV, Blender, AutoCAD 系統)
+class CoorRH_PZuPYfPXrState(CoordinateState):
+
+    def __init__(self):
+        """
+        オブジェクトの座標系
+          z y(正面方向)
+          |/
+          /---x
+        """
+        super(CoorRH_PZuPYfPXrState, self).__init__()
+        self.mat_str = "col-major"
+        self.coor_str = "right"
+        self.obj_forward_str = "py"
+        self.obj_up_str = "pz"
+        self.obj_right_str = "px"
+        self.cam_forward_str = "pz"
+        self.cam_up_str = "ny"
+        self.cam_right_str = "px"
+
+
+    @CoordinateState.overrides(CoordinateState)
+    def look_at(self, 
+               target_pos: np.ndarray, 
+               camera_pos: np.ndarray, 
+               up_axis: Tuple[float, float, float] = (0.0 ,0.0 ,1.0)) -> np.ndarray:
+        """カメラのView行列[4x4]を求める
+        視線方向: Z軸の正の向き
+        右方向: X軸の正の向き
+        上方向: Y軸の負の向き
+          z(視線方向)
+         /
+        /---x
+        |
+        y
+        Args:
+            target_pos (np.ndarray): ターゲット位置ベクトル[3x1]
+            camera_pos (np.ndarray): カメラ中心位置ベクトル[3x1]
+            up_axis (Tuple[float, float, float]): カメラの上向きベクトル
+
+        Returns:
+            np.ndarray: カメラのView行列[4x4]
+        """
+        # 視線ベクトル
+        ct_vec = target_pos - camera_pos
+        cam_eye = ct_vec / np.linalg.norm(ct_vec)
+
+        # カメラ上向き
+        cam_up = np.array(up_axis, dtype=np.float32)
+
+        # カメラX軸正向きベクトル(単位ベクトル)
+        cam_x = np.cross(cam_eye, cam_up)
+        cam_x /= np.linalg.norm(cam_x)
+
+        # カメラY軸正向きベクトル(単位ベクトル)
+        cam_y = np.cross(cam_eye, cam_x)
         cam_y /= np.linalg.norm(cam_y)
 
         # カメラZ軸正向きベクトル(単位ベクトル)
@@ -188,14 +593,25 @@ class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
             [0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float32) # 列優先表現
 
+        # カメラ座標系の基底軸(方向)を保存
+        self.cam_x = cam_x
+        self.cam_y = cam_y
+        self.cam_z = cam_z
+
+        # カメラの座標系の位置を保存
+        self.cam_pos = np.array([tx, ty, tz], dtype=np.float32)
+
         return V
     
     @CoordinateState.overrides(CoordinateState)
-    def perspective_division(self, points: np.ndarray, nic: bool = True) -> np.ndarray:
+    def perspective_division(self, 
+                             camera_points: np.ndarray, 
+                             nic: bool = True,
+                             ) -> np.ndarray:
         """カメラ座標系からNIC座標系(or NDC座標系)に変換
 
         Args:
-            points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
+            camera_points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
             nic (bool): NDC座標系への変換フラグ
         Returns:
             np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
@@ -207,139 +623,13 @@ class CoorRH_PYup_PZforward_NXright_State(CoordinateState):
             # Zバッファによるカリングを考慮したピクセルレンダリング
             pass
 
-    
-    @CoordinateState.overrides(CoordinateState)
-    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の前方ベクトル(基底:単位ベクトル)を求める
-
-        Args:
-            rot (np.ndarray): 回転行列[3x3]
-
-        Returns:
-            np.ndarray: 前方ベクトル[3x1]
-        """
-        # 行列は列優先表現
-        return get_axis_z(rot) # forward : Z軸正方向
-    
-    @CoordinateState.overrides(CoordinateState)
-    def right_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の右方ベクトル(基底:単位ベクトル)を求める
-
-        Args:
-            rot (np.ndarray): 回転行列[3x3]
-
-        Returns:
-            np.ndarray: 右方ベクトル[3x1]
-        """
-        # 行列は列優先表現
-        return -1.0 * get_axis_x(rot) # right : X軸負方向
-    
-    @CoordinateState.overrides(CoordinateState)
-    def up_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の上方ベクトル(基底:単位ベクトル)を求める
-
-        Args:
-            rot (np.ndarray): 回転行列[3x3]
-
-        Returns:
-            np.ndarray: 上方ベクトル[3x1]
-        """
-        # 行列は列優先表現
-        return get_axis_y(rot) # up : Y軸正方向
-
-        
-# 右手座標系 PosZup-PosYforward-PosXright (OpenCV, Blender, AutoCAD 系統)
-class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
-
-    def __init__(self):
-        """
-        オブジェクトの座標系
-         z y(正面方向)
-         |/
-         ---x
-        """
-        super(CoorRH_PZup_PYforward_PXright_State, self).__init__()
-        self.coor_style: Optional(str) = "right"
-        self.up_axis: Optional(str) = "pos_z"
-        self.forward_axis: Optional(str) = "pos_y"
-        self.right_axis = "pos_x"
-
+    """ Object Direction """
 
     @CoordinateState.overrides(CoordinateState)
-    def look_at(self, 
-               target_pos: np.ndarray, 
-               camera_pos: np.ndarray, 
-               up_axis: Tuple[float, float, float] = [0,0,1]) -> np.ndarray:
-        """カメラのView行列[4x4]を求める
-        視線方向: Z軸の正の向き
-        右方向: X軸の正の向き
-        上方向: Y軸の負の向き
-          z(視線方向)
-         /
-        /---x
-        |
-        y
-        Args:
-            target_pos (np.ndarray): ターゲット位置ベクトル[3x1]
-            camera_pos (np.ndarray): カメラ中心位置ベクトル[3x1]
-            up_axis (Tuple[float, float, float]): カメラの上向きベクトル
-
-        Returns:
-            np.ndarray: カメラのView行列[4x4]
-        """
-        # カメラのZ軸正向きベクトル(単位ベクトル) : 視線ベクトル
-        ct_vec = target_pos - camera_pos
-        cam_eye = ct_vec / np.linalg.norm(ct_vec)
-
-        # カメラ上向き
-        cam_up = np.array(up_axis, dtype=np.float32)
-
-        # カメラX軸正向きベクトル(単位ベクトル)
-        cam_x = np.cross(cam_eye, cam_up)
-        cam_x /= np.linalg.norm(cam_x)
-
-        # カメラY軸正向きベクトル(単位ベクトル)
-        cam_y = -1.0 * np.cross(cam_x, cam_eye)
-        cam_y /= np.linalg.norm(cam_y)
-
-        # カメラZ軸正向きベクトル(単位ベクトル)
-        cam_z = cam_eye
-
-        # カメラ位置
-        tx = -1.0 * np.dot(cam_x, camera_pos)
-        ty = -1.0 * np.dot(cam_y, camera_pos)
-        tz = -1.0 * np.dot(cam_z, camera_pos)
-
-        # 4x4行列(ΣWの座標をΣCの座標に変換)
-        V = np.array([
-            [cam_x[0], cam_y[0], cam_z[0], tx],
-            [cam_x[1], cam_y[1], cam_z[1], ty],
-            [cam_x[2], cam_y[2], cam_z[2], tz],
-            [0.0, 0.0, 0.0, 1.0]
-        ], dtype=np.float32) # 列優先表現
-
-        return V
-    
-    @CoordinateState.overrides(CoordinateState)
-    def perspective_division(self, points: np.ndarray, nic: bool = True) -> np.ndarray:
-        """カメラ座標系からNIC座標系(or NDC座標系)に変換
-
-        Args:
-            points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
-            nic (bool): NDC座標系への変換フラグ
-        Returns:
-            np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
-        """
-        if nic:
-            # ピンホールカメラモデルによる撮像素子平面への投影
-            pass
-        else:
-            # Zバッファによるカリングを考慮したピクセルレンダリング
-            pass
-    
-    @CoordinateState.overrides(CoordinateState)
-    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の前方ベクトル(基底:単位ベクトル)を求める
+    def obj_forward_axis(self, 
+                         rot: np.ndarray,
+                         ) -> np.ndarray:
+        """オブジェクト座標系の前方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -349,10 +639,12 @@ class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
         """
         # 行列は列優先表現
         return get_axis_y(rot) # forward : Y軸正方向
-    
+
     @CoordinateState.overrides(CoordinateState)
-    def right_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の右方ベクトル(基底:単位ベクトル)を求める
+    def obj_right_axis(self, 
+                       rot: np.ndarray,
+                       ) -> np.ndarray:
+        """オブジェクト座標系の右方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -364,8 +656,10 @@ class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
         return get_axis_x(rot) # right : X軸正方向
     
     @CoordinateState.overrides(CoordinateState)
-    def up_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の上方ベクトル(基底:単位ベクトル)を求める
+    def obj_up_axis(self, 
+                    rot: np.ndarray,
+                    ) -> np.ndarray:
+        """オブジェクト座標系の上方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -375,10 +669,140 @@ class CoorRH_PZup_PYforward_PXright_State(CoordinateState):
         """
         # 行列は列優先表現
         return get_axis_z(rot) # up : Z軸正方向
+    
+    """ Object Axis """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_x_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        """オブジェクト座標系のX軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_x(rot) 
+
+    @CoordinateState.overrides(CoordinateState)
+    def obj_y_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        """オブジェクト座標系のY軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: Y軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_y(rot)
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_z_axis(self, 
+                   rot: np.ndarray,
+                   ) -> np.ndarray:
+        """オブジェクト座標系のZ軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_z(rot)
+    
+    """ Camera Direction """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_forward_axis(self) -> np.ndarray:
+        """カメラ座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_z
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_up_axis(self) -> np.ndarray:
+        """カメラ座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return -1.0 * self.cam_y
+
+    @CoordinateState.overrides(CoordinateState)
+    def cam_right_axis(self) -> np.ndarray:
+        """カメラ座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_x
+
+    """ Camera Axis """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_x_axis(self) -> np.ndarray:
+        """カメラ座標系のX軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_x
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_y_axis(self) -> np.ndarray:
+        """カメラ座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_y
+
+    @CoordinateState.overrides(CoordinateState)
+    def cam_z_axis(self) -> np.ndarray:
+        """カメラ座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_z
+
 
 
 # 左手座標系 PosYup-PosZforward-PosXright (Direct3D, Metal, Unity 系統)
-class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
+class CoorLH_PYuPZfPXrState(CoordinateState):
 
     def __init__(self):
         """オブジェクトの座標系
@@ -386,17 +810,21 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
          |/
          ---x
         """
-        super(CoorLH_PYup_PZforward_PXright_State, self).__init__()
-        self.coor_style: Optional(str) = "left"
-        self.up_axis: Optional(str) = "pos_y"
-        self.forward_axis: Optional(str) = "pos_z"
-        self.right_axis: Optional(str) = "pos_x"
+        super(CoorLH_PYuPZfPXrState, self).__init__()
+        self.mat_str = "col-major"
+        self.coor_str = "left"
+        self.obj_forward_str = "pz"
+        self.obj_up_str = "py"
+        self.obj_right_str = "px"
+        self.cam_forward_str = "pz"
+        self.cam_up_str = "py"
+        self.cam_right_str = "px"
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
                target_pos: np.ndarray, 
                camera_pos: np.ndarray, 
-               up_axis: Tuple[float, float, float] = [0,1,0]) -> np.ndarray:
+               up_axis: Tuple[float, float, float] = (0.0, 1.0, 0.0)) -> np.ndarray:
         """カメラのView行列[4x4]を求める
         視線方向: Z軸の正の向き
         右方向: X軸の正の向き
@@ -443,14 +871,22 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
             [0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float32) # 列優先表現
 
+        # カメラ座標系の基底軸(方向)を保存
+        self.cam_x = cam_x
+        self.cam_y = cam_y
+        self.cam_z = cam_z
+
+        # カメラの座標系の位置を保存
+        self.cam_pos = np.array([tx, ty, tz], dtype=np.float32)
+
         return V
     
     @CoordinateState.overrides(CoordinateState)
-    def perspective_division(self, points: np.ndarray, nic: bool = True) -> np.ndarray:
+    def perspective_division(self, camera_points: np.ndarray, nic: bool = True) -> np.ndarray:
         """カメラ座標系からNIC座標系(or NDC座標系)に変換
 
         Args:
-            points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
+            camera_points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
             nic (bool): NDC座標系への変換フラグ
         Returns:
             np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
@@ -462,9 +898,11 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
             # Zバッファによるカリングを考慮したピクセルレンダリング
             pass
     
+    """ Object Direction """
+
     @CoordinateState.overrides(CoordinateState)
-    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の前方ベクトル(基底:単位ベクトル)を求める
+    def obj_forward_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系の前方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -474,10 +912,10 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
         """
         # 行列は列優先表現
         return get_axis_z(rot) # forward : Z軸正方向
-    
+
     @CoordinateState.overrides(CoordinateState)
-    def right_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の右方ベクトル(基底:単位ベクトル)を求める
+    def obj_right_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系の右方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -489,8 +927,8 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
         return get_axis_x(rot) # right : X軸正方向
     
     @CoordinateState.overrides(CoordinateState)
-    def up_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の上方ベクトル(基底:単位ベクトル)を求める
+    def obj_up_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系の上方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -500,10 +938,134 @@ class CoorLH_PYup_PZforward_PXright_State(CoordinateState):
         """
         # 行列は列優先表現
         return get_axis_y(rot) # up : Y軸正方向
+    
+    """ Object Axis """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_x_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系のX軸正向きベクトル(基底:単位ベクトル)を求める
 
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
 
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_x(rot) 
+
+    @CoordinateState.overrides(CoordinateState)
+    def obj_y_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系のY軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: Y軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_y(rot)
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_z_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系のZ軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_z(rot)
+    
+
+    """ Camera Direction """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_forward_axis(self) -> np.ndarray:
+        """カメラ座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_z
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_up_axis(self) -> np.ndarray:
+        """カメラ座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_y
+
+    @CoordinateState.overrides(CoordinateState)
+    def cam_right_axis(self) -> np.ndarray:
+        """カメラ座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_x
+
+    """ Camera Axis """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_x_axis(self) -> np.ndarray:
+        """カメラ座標系のX軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_x
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_y_axis(self) -> Optional[np.ndarray]:
+        """カメラ座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_y
+
+    @CoordinateState.overrides(CoordinateState)
+    def cam_z_axis(self) -> Optional[np.ndarray]:
+        """カメラ座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_z
+
+    
 # 左手座標系 PosZup-NegYforward-PosXright (Unreal Engine 系統)
-class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
+class CoorLH_PZuNYfPXrState(CoordinateState):
 
     def __init__(self):
         """オブジェクトの座標系
@@ -512,17 +1074,21 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
           /---x
          y
         """
-        super(CoorLH_PZup_NYforward_PXright_State, self).__init__()
-        self.coor_style: Optional(str) = "left"
-        self.up_axis: Optional(str) = "pos_z"
-        self.forward_axis: Optional(str) = "neg_y"
-        self.right_axis: Optional(str) = "pos_x"
+        super(CoorLH_PZuNYfPXrState, self).__init__()
+        self.mat_str = "col-major"
+        self.coor_str = "left"
+        self.obj_forward_str = "ny"
+        self.obj_up_str = "pz"
+        self.obj_right_str = "px"
+        self.cam_forward_str = "nz"
+        self.cam_up_str = "ny"
+        self.cam_right_str = "px"
 
     @CoordinateState.overrides(CoordinateState)
     def look_at(self, 
                target_pos: np.ndarray, 
                camera_pos: np.ndarray, 
-               up_axis: Tuple[float, float, float] = [0,0,1]) -> np.ndarray:
+               up_axis: Tuple[float, float, float] = (0.0, 0.0, 1.0)) -> np.ndarray:
         """カメラのView行列[4x4]を求める
         視線方向: Z軸の負の向き
         右方向: X軸の正の向き
@@ -572,14 +1138,25 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
             [0.0, 0.0, 0.0, 1.0]
         ], dtype=np.float32) # 列優先表現
 
+        # カメラ座標系の基底軸(方向)を保存
+        self.cam_x = cam_x
+        self.cam_y = cam_y
+        self.cam_z = cam_z
+
+        # カメラの座標系の位置を保存
+        self.cam_pos = np.array([tx, ty, tz], dtype=np.float32)
+
         return V
     
     @CoordinateState.overrides(CoordinateState)
-    def perspective_division(self, points: np.ndarray, nic: bool = True) -> np.ndarray:
+    def perspective_division(self, 
+                             camera_points: np.ndarray, 
+                             nic: bool = True,
+                             ) -> np.ndarray:
         """カメラ座標系からNIC座標系(or NDC座標系)に変換
 
         Args:
-            points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
+            camera_points (np.ndarray): カメラ座標系の座標点群 [Nx4] (Xc,Yc,Zc,1)
             nic (bool): NDC座標系への変換フラグ
         Returns:
             np.ndarray: NIC座標(or NDC座標) (Xnic,Ynic) or (Xndc, Yndc, Zndc)
@@ -591,9 +1168,11 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
             # Zバッファによるカリングを考慮したピクセルレンダリング
             pass
     
+    """ Object Direction """
+
     @CoordinateState.overrides(CoordinateState)
-    def forward_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の前方ベクトル(基底:単位ベクトル)を求める
+    def obj_forward_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系の前方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -602,11 +1181,11 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
             np.ndarray: 前方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return get_axis_x(rot) # forward : X軸正方向
-    
+        return -1.0 * get_axis_y(rot) # forward : Y軸負方向
+
     @CoordinateState.overrides(CoordinateState)
-    def right_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の右方ベクトル(基底:単位ベクトル)を求める
+    def obj_right_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系の右方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -615,11 +1194,11 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
             np.ndarray: 右方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return get_axis_y(rot) # right : Y軸正方向
+        return get_axis_x(rot) # right : X軸正方向
     
     @CoordinateState.overrides(CoordinateState)
-    def up_axis(self, rot: np.ndarray) -> np.ndarray:
-        """座標系の上方ベクトル(基底:単位ベクトル)を求める
+    def obj_up_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系の上方ベクトル(基底:単位ベクトル)を求める
 
         Args:
             rot (np.ndarray): 回転行列[3x3]
@@ -628,5 +1207,129 @@ class CoorLH_PZup_NYforward_PXright_State(CoordinateState):
             np.ndarray: 上方ベクトル[3x1]
         """
         # 行列は列優先表現
-        return get_axis_z(rot) # up : Z軸正方向
+        return get_axis_y(rot) # up : Y軸正方向
     
+    
+    """ Object Axis """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_x_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系のX軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_x(rot) 
+
+    @CoordinateState.overrides(CoordinateState)
+    def obj_y_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系のY軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: Y軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_y(rot)
+    
+    @CoordinateState.overrides(CoordinateState)
+    def obj_z_axis(self, rot: np.ndarray) -> np.ndarray:
+        """オブジェクト座標系のZ軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return get_axis_z(rot)
+    
+
+    """ Camera Direction """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_forward_axis(self) -> np.ndarray:
+        """カメラ座標系の前方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 前方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_z
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_up_axis(self) -> np.ndarray:
+        """カメラ座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return -1.0 * self.cam_y
+
+    @CoordinateState.overrides(CoordinateState)
+    def cam_right_axis(self) -> np.ndarray:
+        """カメラ座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_x
+
+    """ Camera Axis """
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_x_axis(self) -> np.ndarray:
+        """カメラ座標系のX軸正向きベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: X軸正向きベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_x
+    
+    @CoordinateState.overrides(CoordinateState)
+    def cam_y_axis(self) -> Optional[np.ndarray]:
+        """カメラ座標系の上方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 上方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_y
+
+    @CoordinateState.overrides(CoordinateState)
+    def cam_z_axis(self) -> Optional[np.ndarray]:
+        """カメラ座標系の右方ベクトル(基底:単位ベクトル)を求める
+
+        Args:
+            rot (np.ndarray): 回転行列[3x3]
+
+        Returns:
+            np.ndarray: 右方ベクトル[3x1]
+        """
+        # 行列は列優先表現
+        return self.cam_z
