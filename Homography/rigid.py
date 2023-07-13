@@ -44,6 +44,11 @@ import math
 
 import numpy as np
 from scipy import linalg
+from scipy import ndimage
+# from scipy.misc import imsave, imshow
+import cv2
+from PIL import Image
+
 
 from type_hint import *
 
@@ -103,15 +108,55 @@ def find_rigid2D(planar1_pts: np.ndarray,
     W[2,2] = 1
 
     params = {
-        's': s,
-        'rot': R,
-        'trans': (tx, ty)
+        'scale': s,
+        'rotation': R,
+        'translation': (tx, ty)
     }
 
     return params, W
 
 
-def rigid_alignment(imgs_src: np.ndarray, imgs_dst: np.ndarray) -> np.ndarray:
-    pass
+
+def rigid_alignment(faces: Dict[str, np.ndarray],
+                    path: str,
+                    plot_flag: bool = True,
+                    ) -> np.ndarray:
+    """画像を位置合わせして, 新たな画像として保存する.
+    """
+
+    # 最初の画像の点を参照点とする
+    ref_points = faces.values()[0]
+
+    # 各画像を相似変換で変形する
+    for face in faces:
+        points = faces[face]
+
+        params, W = find_rigid2D(ref_points, points)
+
+        # s: float = params['scale']
+        # rot: np.ndarray = params['rotation']
+        # tran: List[float] = params['translation']
+        inv_W = np.linalg.inv(W)
+
+        img = np.array(Image.open(os.path.join(path, face))) # (H,W,C)
+        img_dst = np.zeros_like(img, dtype='uint8')
+
+        # 色チャネル毎に変形する
+        for i in range(len(img.shape)):
+            
+            img_dst[:,:, i] = ndimage.affine_transform(input=img[:,:,:], 
+                                                       matrix=inv_W,
+                                                       )
+
+        # 表示
+        if plot_flag:
+            cv2.imshow("aligned-image", img_dst)
+
+        # 境界を切り抜き, 位置合わせした画像を保存する
+        h, w = img_dst.shape[:2]
+        border = (w+h) / 2
+        cv2.imwrite(os.path.join(path, 'aligned/' + face),
+                    img_dst[border : h - border, border : w - border],
+                    )
 
 

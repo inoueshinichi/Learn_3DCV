@@ -236,7 +236,7 @@ def dt_rot(rot: np.ndarray, omega: np.ndarray) -> np.ndarray:
         raise ValueError(f"Not match shape (3,1). Given is {omega.shape}")
     
     # 角速度ベクトルの歪対称行列
-    tilde_omega: np.ndarray = np.zeros(3, 3, dtype=np.float32)
+    tilde_omega: np.ndarray = np.zeros((3, 3), dtype=np.float32)
     tilde_omega[0,1] = omega[2]
     tilde_omega[0,2] = -omega[1]
     tilde_omega[1,0] = -omega[2]
@@ -245,3 +245,9 @@ def dt_rot(rot: np.ndarray, omega: np.ndarray) -> np.ndarray:
     tilde_omega[2,1] = -omega[0]
 
     return tilde_omega @ rot
+
+
+
+
+
+        
